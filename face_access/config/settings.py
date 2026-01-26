@@ -20,10 +20,10 @@ class Settings:
     
     # Quality Filters
     BLUR_THRESHOLD = 60  # Laplacian variance
-    YAW_THRESHOLD = 30    # degrees
-    PITCH_THRESHOLD = 30  # degrees
-    EYE_LANDMARK_THRESHOLD = 0.7
-    NOSE_LANDMARK_THRESHOLD = 0.7
+    YAW_THRESHOLD = 35    # degrees
+    PITCH_THRESHOLD = 35  # degrees
+    EYE_LANDMARK_THRESHOLD = 0.6
+    NOSE_LANDMARK_THRESHOLD = 0.6
     
     # Embedding & Similarity
     ENROLLMENT_SAMPLES = 10  # 5-10 embeddings

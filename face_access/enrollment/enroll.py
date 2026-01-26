@@ -1,12 +1,20 @@
 import cv2
 import numpy as np
+import os
+import sys
+from pathlib import Path
+from tkinter import Tk, filedialog
+
+# Add parent directory to path to import utils
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 from utils.logger import Logger
 from utils.math_utils import average_embedding
 
 class Enrollment:
-    """Alur pendaftaran pegawai"""
+    """Alur pendaftaran pegawai dengan pilihan rekam video atau upload gambar"""
     
-    def __init__(self, camera, detector, quality_checker, # liveness_checker, 
+    def __init__(self, camera, detector, quality_checker, #liveness_checker, 
                  embedding_extractor, pegawai_repo, embedding_repo, settings):
         self.camera = camera
         self.detector = detector
@@ -17,24 +25,37 @@ class Enrollment:
         self.embedding_repo = embedding_repo
         self.settings = settings
     
-    def enroll(self, nama, nip):
-        """Proses pendaftaran pegawai baru"""
-        Logger.info(f"Memulai pendaftaran: {nama} ({nip})")
+    def enroll(self, nama, nip, mode='video'):
+        """
+        Proses pendaftaran pegawai baru
+        mode: 'video' atau 'upload'
+        """
+        Logger.info(f"Memulai pendaftaran: {nama} ({nip}) - Mode: {mode}")
         
-        # Step 1: Buka kamera
+        if mode == 'video':
+            return self._enroll_video(nama, nip)
+        elif mode == 'upload':
+            return self._enroll_upload(nama, nip)
+        else:
+            Logger.error(f"Mode tidak valid: {mode}")
+            return False
+    
+    def _enroll_video(self, nama, nip):
+        """Enrollment dengan rekam video dari webcam"""
+        # Buka kamera
         if not self.camera.open():
             Logger.error("Gagal membuka kamera")
             return False
         
         try:
-            # Step 2: Capture multiple embeddings
-            embeddings = self._capture_embeddings()
+            # Capture multiple embeddings
+            embeddings = self._capture_embeddings_video()
             
             if len(embeddings) < self.settings.ENROLLMENT_SAMPLES:
                 Logger.warning(f"Hanya dapat {len(embeddings)} embeddings, butuh minimal {self.settings.ENROLLMENT_SAMPLES}")
                 return False
             
-            # Step 3: Verify consistency
+            # Verify consistency
             is_consistent, avg_similarity = self._verify_consistency(embeddings)
             
             if not is_consistent:
@@ -44,16 +65,16 @@ class Enrollment:
             
             Logger.success(f"Embeddings konsisten (avg similarity: {avg_similarity:.3f})")
             
-            # Step 4: Liveness check (DISABLED)
+            # Liveness check
             # Logger.info("Melakukan liveness check...")
             # if not self.liveness_checker.check(self.camera):
             #     Logger.error("Liveness check gagal")
             #     return False
             
-            # Step 5: Calculate average embedding
+            # Calculate average embedding
             avg_embedding = average_embedding(embeddings)
             
-            # Step 6: Save to database
+            # Save to database
             id_pegawai = self._save_to_database(nama, nip, avg_embedding)
             
             if id_pegawai:
@@ -66,11 +87,156 @@ class Enrollment:
         finally:
             self.camera.release()
     
-    def _capture_embeddings(self):
-        """Capture 5-10 embeddings dengan validasi"""
+    def _enroll_upload(self, nama, nip):
+        """Enrollment dengan upload multiple images"""
+        Logger.info("Mode: Upload gambar")
+        Logger.info(f"Siapkan 5-10 foto wajah dengan:")
+        Logger.info("- Angle berbeda (depan, sedikit kiri, sedikit kanan)")
+        Logger.info("- Ekspresi berbeda")
+        Logger.info("- Pencahayaan baik")
+        Logger.info("- Format: jpg, jpeg, png")
+        
+        # Get image paths from user using file browser
+        image_paths = self._get_image_paths()
+        
+        if len(image_paths) < 5:
+            Logger.error(f"❌ GAGAL: Minimal 5 gambar diperlukan, hanya ada {len(image_paths)}")
+            return False
+        
+        Logger.info(f"✓ Diterima {len(image_paths)} gambar untuk diproses")
+        
+        # Process images
+        embeddings = self._process_uploaded_images(image_paths)
+        
+        if len(embeddings) < 5:
+            Logger.warning(f"❌ Hanya {len(embeddings)} gambar valid dari {len(image_paths)}")
+            Logger.warning("Upload lebih banyak gambar berkualitas baik (minimal 5)")
+            return False
+        
+        Logger.success(f"✓ Berhasil extract {len(embeddings)} embeddings valid")
+        
+        # Verify consistency
+        is_consistent, avg_similarity = self._verify_consistency(embeddings)
+        
+        if not is_consistent:
+            Logger.warning(f"Kualitas embedding tidak konsisten (avg similarity: {avg_similarity:.3f})")
+            Logger.warning("Upload gambar dengan angle & pencahayaan lebih bervariasi")
+            return False
+        
+        Logger.success(f"✓ Embeddings konsisten (avg similarity: {avg_similarity:.3f})")
+        
+        # NO liveness check for uploaded images (can't do live check on static images)
+        Logger.warning("⚠️ Liveness check dilewati untuk mode upload")
+        Logger.warning("⚠️ Pastikan foto adalah wajah asli, bukan dari layar/print")
+        
+        # Calculate average embedding
+        avg_embedding = average_embedding(embeddings)
+        
+        # Save to database
+        id_pegawai = self._save_to_database(nama, nip, avg_embedding)
+        
+        if id_pegawai:
+            Logger.success(f"✓ Pendaftaran berhasil! ID Pegawai: {id_pegawai}")
+            return True
+        else:
+            Logger.error("Gagal menyimpan ke database")
+            return False
+    
+    def _get_image_paths(self):
+        """Get image paths menggunakan file browser dialog"""
+        Logger.info("⏳ Membuka file browser...")
+        
+        try:
+            root = Tk()
+            root.withdraw()  # Hide the tkinter window
+            root.attributes('-topmost', True)  # Make dialog appear on top
+            
+            # Ask user to select multiple files
+            file_paths = filedialog.askopenfilenames(
+                title="Pilih 5-10 foto wajah Anda (minimal 5)",
+                filetypes=[("Image files", "*.jpg *.jpeg *.png"), ("All files", "*.*")],
+                initialdir=os.path.expanduser("~\\Pictures")  # Default ke folder Pictures
+            )
+            
+            root.destroy()
+            
+            if not file_paths:
+                Logger.error("❌ Tidak ada file yang dipilih")
+                return []
+            
+            image_paths = list(file_paths)
+            
+            # Validate number of images
+            if len(image_paths) < 5:
+                Logger.error(f"❌ Minimal 5 gambar diperlukan, hanya ada {len(image_paths)}")
+                return []
+            
+            if len(image_paths) > 10:
+                Logger.warning(f"⚠️ Dipilih {len(image_paths)} gambar, maksimal 10. Menggunakan 10 gambar pertama.")
+                image_paths = image_paths[:10]
+            
+            Logger.success(f"✓ Dipilih {len(image_paths)} gambar:")
+            for i, path in enumerate(image_paths, 1):
+                Logger.info(f"  {i}. {os.path.basename(path)}")
+            
+            return image_paths
+        
+        except Exception as e:
+            Logger.error(f"Error saat membuka file browser: {e}")
+            return []
+    
+    def _process_uploaded_images(self, image_paths):
+        """Process uploaded images dan extract embeddings"""
+        embeddings = []
+        
+        Logger.info(f"Memproses {len(image_paths)} gambar...")
+        
+        for i, image_path in enumerate(image_paths):
+            Logger.info(f"Processing {i+1}/{len(image_paths)}: {os.path.basename(image_path)}")
+            
+            # Read image
+            frame = cv2.imread(image_path)
+            
+            if frame is None:
+                Logger.warning(f"Gagal membaca gambar: {image_path}")
+                continue
+            
+            # Resize if too large
+            h, w = frame.shape[:2]
+            if w > 1920 or h > 1080:
+                scale = min(1920/w, 1080/h)
+                new_w, new_h = int(w*scale), int(h*scale)
+                frame = cv2.resize(frame, (new_w, new_h))
+            
+            # Detect face
+            face, msg = self.detector.get_single_face(frame, self.settings.CONFIDENCE_THRESHOLD)
+            
+            if face is None:
+                Logger.warning(f"  ✗ {msg}")
+                continue
+            
+            # Validate quality
+            is_valid, result = self.quality_checker.validate_face(frame, face)
+            
+            if not is_valid:
+                Logger.warning(f"  ✗ {result}")
+                continue
+            
+            # Extract embedding
+            embedding = self.embedding_extractor.extract(face)
+            embeddings.append(embedding)
+            
+            Logger.success(f"  ✓ Valid - embedding extracted")
+        
+        Logger.info(f"Berhasil extract {len(embeddings)} embeddings dari {len(image_paths)} gambar")
+        
+        return embeddings
+    
+    def _capture_embeddings_video(self):
+        """Capture embeddings dari video webcam"""
         embeddings = []
         frame_count = 0
-        process_interval = 3  # Process every 3rd frame
+        process_interval = 3
         
         Logger.info("Posisikan wajah Anda di depan kamera...")
         Logger.info(f"Target: {self.settings.ENROLLMENT_SAMPLES} embeddings")

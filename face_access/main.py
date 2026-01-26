@@ -71,12 +71,14 @@ class FaceAccessSystem:
         )
         # self.liveness_checker = LivenessChecker(self.detector, self.quality_checker)
     
-    def enroll_employee(self, nama, nip):
+    def enroll_employee(self, nama, nip, mode='video'):
         """Daftarkan pegawai baru"""
-        self._init_camera_for_enrollment()
+        if mode == 'video':
+            self._init_camera_for_enrollment()
+        # mode 'upload' tidak perlu inisialisasi camera
         
         enrollment = Enrollment(
-            camera=self.camera,
+            camera=self.camera if mode == 'video' else None,
             detector=self.detector,
             quality_checker=self.quality_checker,
             # liveness_checker=self.liveness_checker,
@@ -86,7 +88,7 @@ class FaceAccessSystem:
             settings=self.settings
         )
         
-        return enrollment.enroll(nama, nip)
+        return enrollment.enroll(nama, nip, mode)
     
     def recognize_face(self):
         """Face recognition untuk akses pintu"""
@@ -110,6 +112,7 @@ class FaceAccessSystem:
     def show_menu(self):
         """Tampilkan menu utama"""
         while True:
+            print(" "*15 + "FACE ACCESS SYSTEM")
             print("1. Pendaftaran Pegawai Baru")
             print("2. Face Recognition (Akses Pintu)")
             print("3. Keluar")
@@ -128,8 +131,10 @@ class FaceAccessSystem:
     
     def _menu_enrollment(self):
         """Menu pendaftaran"""
+        print(" "*15 + "PENDAFTARAN PEGAWAI")
+        
         nama = input("Nama Lengkap: ").strip()
-        nip = input("NIP: ").strip()
+        nip = input("NIP (10 digit): ").strip()
         
         if not nama or not nip:
             Logger.warning("Nama dan NIP tidak boleh kosong!")
@@ -139,10 +144,35 @@ class FaceAccessSystem:
             Logger.warning("NIP harus 10 digit!")
             return
         
-        Logger.info("Memulai proses pendaftaran...")
-        Logger.info("Tekan 'q' untuk membatalkan")
+        # Pilihan mode enrollment
+        print("PILIH METODE PENDAFTARAN")
+        print("1. Rekam Video (Webcam)")
+        print("   - Real-time dari webcam")
+        print("   - Dengan liveness check")
+        print("   - Lebih aman")
+        print()
+        print("2. Upload Gambar")
+        print("   - Pilih 5-10 foto wajah dari folder")
+        print("   - Angle & ekspresi berbeda")
+        print("   - Tanpa liveness check")
+        print("   - Minimal 5 gambar untuk diterima")
         
-        success = self.enroll_employee(nama, nip)
+        mode_choice = input("\nPilih metode (1/2): ").strip()
+        
+        if mode_choice == '1':
+            mode = 'video'
+            Logger.info("Mode: Rekam Video")
+            Logger.info("Tekan 'q' untuk membatalkan")
+        elif mode_choice == '2':
+            mode = 'upload'
+            Logger.info("Mode: Upload Gambar (GUI File Browser)")
+        else:
+            Logger.warning("Pilihan tidak valid!")
+            return
+        
+        Logger.info("Memulai proses pendaftaran...")
+        
+        success = self.enroll_employee(nama, nip, mode)
         
         if success:
             input("\nTekan Enter untuk kembali ke menu...")
@@ -151,7 +181,9 @@ class FaceAccessSystem:
             input("\nTekan Enter untuk kembali ke menu...")
     
     def _menu_recognition(self):
-        """Menu face recognition"""        
+        """Menu face recognition"""
+        print(" "*15 + "FACE RECOGNITION")
+        
         Logger.info("Memulai face recognition...")
         Logger.info("Tekan 'q' untuk membatalkan")
         

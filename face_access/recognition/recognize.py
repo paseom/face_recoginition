@@ -153,12 +153,9 @@ class Recognition:
     def _grant_access(self, employee_id):
         """Grant access dan buka pintu"""
         employee = self.pegawai_repo.get_by_id(employee_id)
-        
-        Logger.success("="*50)
         Logger.success(f"✓ AKSES DIBERIKAN")
         Logger.success(f"Nama: {employee['nama']}")
         Logger.success(f"NIP: {employee['nip']}")
-        Logger.success("="*50)
         
         # Log access
         self.log_repo.log_access(employee_id, 'GRANTED', 'Akses berhasil')
