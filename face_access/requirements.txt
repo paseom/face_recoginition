@@ -1,0 +1,13 @@
+# Face Access System Requirements
+
+# Core dependencies
+opencv-contrib-python>=4.8.0
+numpy>=1.24.0
+insightface>=0.7.3
+onnxruntime>=1.16.0
+
+# Database
+mysql-connector-python>=8.0.0
+
+# Optional: for better performance
+# onnxruntime-gpu>=1.16.0  # Uncomment if using GPU
