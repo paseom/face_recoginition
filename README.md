@@ -1,6 +1,7 @@
 Face Recognition Door Access System
 Sistem akses pintu berbasis face recognition dengan teknologi InsightFace (RetinaFace + ArcFace).
-📁 Struktur Project
+
+**Struktur Project**
 face_access/
 │
 ├── main.py                 
