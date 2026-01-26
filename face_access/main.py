@@ -127,9 +127,9 @@ class FaceAccessSystem:
                 Logger.warning("Pilihan tidak valid!")
     
     def _menu_enrollment(self):
-        """Menu pendaftaran"""        
+        """Menu pendaftaran"""
         nama = input("Nama Lengkap: ").strip()
-        nip = input("NIP (10 digit): ").strip()
+        nip = input("NIP: ").strip()
         
         if not nama or not nip:
             Logger.warning("Nama dan NIP tidak boleh kosong!")

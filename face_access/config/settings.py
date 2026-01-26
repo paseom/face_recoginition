@@ -15,11 +15,11 @@ class Settings:
     
     # Face Detection Thresholds
     FACE_SIZE_THRESHOLD = 0.05  # 5% dari frame
-    CONFIDENCE_THRESHOLD = 0.8
+    CONFIDENCE_THRESHOLD = 0.6
     MAX_FACES = 1  # Only 1 face allowed
     
     # Quality Filters
-    BLUR_THRESHOLD = 100  # Laplacian variance
+    BLUR_THRESHOLD = 60  # Laplacian variance
     YAW_THRESHOLD = 30    # degrees
     PITCH_THRESHOLD = 30  # degrees
     EYE_LANDMARK_THRESHOLD = 0.7
