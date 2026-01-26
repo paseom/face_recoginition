@@ -110,13 +110,9 @@ class FaceAccessSystem:
     def show_menu(self):
         """Tampilkan menu utama"""
         while True:
-            print("\n" + "="*60)
-            print(" "*15 + "FACE ACCESS SYSTEM")
-            print("="*60)
             print("1. Pendaftaran Pegawai Baru")
             print("2. Face Recognition (Akses Pintu)")
             print("3. Keluar")
-            print("="*60)
             
             choice = input("\nPilih menu (1-3): ").strip()
             
@@ -131,11 +127,7 @@ class FaceAccessSystem:
                 Logger.warning("Pilihan tidak valid!")
     
     def _menu_enrollment(self):
-        """Menu pendaftaran"""
-        print("\n" + "="*60)
-        print(" "*15 + "PENDAFTARAN PEGAWAI")
-        print("="*60)
-        
+        """Menu pendaftaran"""        
         nama = input("Nama Lengkap: ").strip()
         nip = input("NIP (10 digit): ").strip()
         
@@ -159,11 +151,7 @@ class FaceAccessSystem:
             input("\nTekan Enter untuk kembali ke menu...")
     
     def _menu_recognition(self):
-        """Menu face recognition"""
-        print("\n" + "="*60)
-        print(" "*15 + "FACE RECOGNITION")
-        print("="*60)
-        
+        """Menu face recognition"""        
         Logger.info("Memulai face recognition...")
         Logger.info("Tekan 'q' untuk membatalkan")
         
