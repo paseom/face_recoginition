@@ -55,12 +55,10 @@ class QualityChecker:
     
     def validate_face(self, frame, face):
         """Comprehensive face validation"""
-        # Check face size
         valid, result = self.check_face_size(face.bbox, frame.shape)
         if not valid:
             return False, result
         
-        # Extract face region
         bbox = face.bbox.astype(int)
         x1, y1, x2, y2 = max(0, bbox[0]), max(0, bbox[1]), bbox[2], bbox[3]
         face_img = frame[y1:y2, x1:x2]
@@ -68,12 +66,10 @@ class QualityChecker:
         if face_img.size == 0:
             return False, "Error cropping face"
         
-        # Check blur
         valid, result = self.check_blur(face_img)
         if not valid:
             return False, result
         
-        # Check pose
         valid, result = self.check_pose(face.kps)
         if not valid:
             return False, result

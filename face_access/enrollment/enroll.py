@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 from tkinter import Tk, filedialog
 
-# Add parent directory to path to import utils
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from utils.logger import Logger
@@ -42,20 +41,17 @@ class Enrollment:
     
     def _enroll_video(self, nama, nip):
         """Enrollment dengan rekam video dari webcam"""
-        # Buka kamera
         if not self.camera.open():
             Logger.error("Gagal membuka kamera")
             return False
         
         try:
-            # Capture multiple embeddings
             embeddings = self._capture_embeddings_video()
             
             if len(embeddings) < self.settings.ENROLLMENT_SAMPLES:
                 Logger.warning(f"Hanya dapat {len(embeddings)} embeddings, butuh minimal {self.settings.ENROLLMENT_SAMPLES}")
                 return False
             
-            # Verify consistency
             is_consistent, avg_similarity = self._verify_consistency(embeddings)
             
             if not is_consistent:
@@ -71,10 +67,8 @@ class Enrollment:
             #     Logger.error("Liveness check gagal")
             #     return False
             
-            # Calculate average embedding
             avg_embedding = average_embedding(embeddings)
             
-            # Save to database
             id_pegawai = self._save_to_database(nama, nip, avg_embedding)
             
             if id_pegawai:
@@ -96,7 +90,6 @@ class Enrollment:
         Logger.info("- Pencahayaan baik")
         Logger.info("- Format: jpg, jpeg, png")
         
-        # Get image paths from user using file browser
         image_paths = self._get_image_paths()
         
         if len(image_paths) < 5:
@@ -105,7 +98,6 @@ class Enrollment:
         
         Logger.info(f"✓ Diterima {len(image_paths)} gambar untuk diproses")
         
-        # Process images
         embeddings = self._process_uploaded_images(image_paths)
         
         if len(embeddings) < 5:
@@ -115,7 +107,6 @@ class Enrollment:
         
         Logger.success(f"✓ Berhasil extract {len(embeddings)} embeddings valid")
         
-        # Verify consistency
         is_consistent, avg_similarity = self._verify_consistency(embeddings)
         
         if not is_consistent:
@@ -125,14 +116,11 @@ class Enrollment:
         
         Logger.success(f"✓ Embeddings konsisten (avg similarity: {avg_similarity:.3f})")
         
-        # NO liveness check for uploaded images (can't do live check on static images)
         Logger.warning("⚠️ Liveness check dilewati untuk mode upload")
         Logger.warning("⚠️ Pastikan foto adalah wajah asli, bukan dari layar/print")
         
-        # Calculate average embedding
         avg_embedding = average_embedding(embeddings)
         
-        # Save to database
         id_pegawai = self._save_to_database(nama, nip, avg_embedding)
         
         if id_pegawai:
@@ -148,14 +136,13 @@ class Enrollment:
         
         try:
             root = Tk()
-            root.withdraw()  # Hide the tkinter window
-            root.attributes('-topmost', True)  # Make dialog appear on top
+            root.withdraw()
+            root.attributes('-topmost', True)
             
-            # Ask user to select multiple files
             file_paths = filedialog.askopenfilenames(
                 title="Pilih 5-10 foto wajah Anda (minimal 5)",
                 filetypes=[("Image files", "*.jpg *.jpeg *.png"), ("All files", "*.*")],
-                initialdir=os.path.expanduser("~\\Pictures")  # Default ke folder Pictures
+                initialdir=os.path.expanduser("~\\Pictures")
             )
             
             root.destroy()
@@ -166,7 +153,6 @@ class Enrollment:
             
             image_paths = list(file_paths)
             
-            # Validate number of images
             if len(image_paths) < 5:
                 Logger.error(f"❌ Minimal 5 gambar diperlukan, hanya ada {len(image_paths)}")
                 return []
@@ -194,35 +180,30 @@ class Enrollment:
         for i, image_path in enumerate(image_paths):
             Logger.info(f"Processing {i+1}/{len(image_paths)}: {os.path.basename(image_path)}")
             
-            # Read image
             frame = cv2.imread(image_path)
             
             if frame is None:
                 Logger.warning(f"Gagal membaca gambar: {image_path}")
                 continue
             
-            # Resize if too large
             h, w = frame.shape[:2]
             if w > 1920 or h > 1080:
                 scale = min(1920/w, 1080/h)
                 new_w, new_h = int(w*scale), int(h*scale)
                 frame = cv2.resize(frame, (new_w, new_h))
             
-            # Detect face
             face, msg = self.detector.get_single_face(frame, self.settings.CONFIDENCE_THRESHOLD)
             
             if face is None:
                 Logger.warning(f"  ✗ {msg}")
                 continue
             
-            # Validate quality
             is_valid, result = self.quality_checker.validate_face(frame, face)
             
             if not is_valid:
                 Logger.warning(f"  ✗ {result}")
                 continue
             
-            # Extract embedding
             embedding = self.embedding_extractor.extract(face)
             embeddings.append(embedding)
             
@@ -249,11 +230,9 @@ class Enrollment:
             frame_count += 1
             display_frame = frame.copy()
             
-            # Display progress
             cv2.putText(display_frame, f"Captured: {len(embeddings)}/{self.settings.ENROLLMENT_SAMPLES}", 
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
-            # Process face detection every N frames
             if frame_count % process_interval == 0:
                 face, msg = self.detector.get_single_face(frame, self.settings.CONFIDENCE_THRESHOLD)
                 
@@ -261,15 +240,12 @@ class Enrollment:
                     cv2.putText(display_frame, msg, (10, 60),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                 else:
-                    # Validate quality
                     is_valid, result = self.quality_checker.validate_face(frame, face)
                     
                     if is_valid:
-                        # Extract embedding
                         embedding = self.embedding_extractor.extract(face)
                         embeddings.append(embedding)
                         
-                        # Draw bounding box
                         bbox = face.bbox.astype(int)
                         cv2.rectangle(display_frame, (bbox[0], bbox[1]), 
                                     (bbox[2], bbox[3]), (0, 255, 0), 2)
@@ -306,10 +282,8 @@ class Enrollment:
     def _save_to_database(self, nama, nip, embedding):
         """Save pegawai dan embedding ke database"""
         try:
-            # Save pegawai
             id_pegawai = self.pegawai_repo.create(nama, nip)
             
-            # Save embedding
             self.embedding_repo.save(id_pegawai, embedding)
             
             return id_pegawai

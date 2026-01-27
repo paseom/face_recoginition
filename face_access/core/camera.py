@@ -25,7 +25,6 @@ class Camera:
             return False, None
         ret, frame = self.cap.read()
         if ret:
-            # Resize to standard size
             frame = cv2.resize(frame, (self.width, self.height))
         return ret, frame
     

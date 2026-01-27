@@ -13,7 +13,6 @@ from enrollment.enroll import Enrollment
 from recognition.recognize import Recognition
 from utils.logger import Logger
 
-
 class FaceAccessSystem:
     """Main system class"""
     
@@ -21,21 +20,17 @@ class FaceAccessSystem:
         """Initialize all components"""
         Logger.info("Initializing Face Access System...")
         
-        # Load settings
         self.settings = Settings()
         
-        # Initialize database
         self.database = Database(self.settings.DB_CONFIG)
         if not self.database.connect():
             Logger.error("Gagal koneksi ke database!")
             raise Exception("Database connection failed")
         
-        # Initialize repositories
         self.pegawai_repo = PegawaiRepository(self.database)
         self.embedding_repo = EmbeddingRepository(self.database)
-        self.log_repo = LogRepository(self.database)
+        self.log_repo = LogRepository(self.database, self.pegawai_repo)
         
-        # Initialize core components
         self.detector = FaceDetector()
         self.quality_checker = QualityChecker(
             blur_threshold=self.settings.BLUR_THRESHOLD,
@@ -45,7 +40,6 @@ class FaceAccessSystem:
         self.embedding_extractor = EmbeddingExtractor(self.detector)
         self.matcher = FaceMatcher(threshold=self.settings.RECOGNITION_SIMILARITY)
         
-        # Camera will be initialized per session
         self.camera = None
         # self.liveness_checker = None
         
@@ -75,7 +69,6 @@ class FaceAccessSystem:
         """Daftarkan pegawai baru"""
         if mode == 'video':
             self._init_camera_for_enrollment()
-        # mode 'upload' tidak perlu inisialisasi camera
         
         enrollment = Enrollment(
             camera=self.camera if mode == 'video' else None,

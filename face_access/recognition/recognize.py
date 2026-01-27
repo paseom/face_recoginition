@@ -20,7 +20,6 @@ class Recognition:
         self.log_repo = log_repo
         self.settings = settings
         
-        # Security tracking
         self.failed_attempts = 0
         self.lockout_until = 0
     
@@ -28,19 +27,16 @@ class Recognition:
         """Proses face recognition untuk akses pintu"""
         Logger.info("=== Face Recognition Access System ===")
         
-        # Check lockout
         if self._is_locked_out():
             remaining = int(self.lockout_until - time.time())
             Logger.warning(f"Sistem terkunci. Coba lagi dalam {remaining} detik")
             return False
         
-        # Step 1: Buka kamera
         if not self.camera.open():
             Logger.error("Gagal membuka kamera")
             return False
         
         try:
-            # Step 2: Detect & recognize face
             employee_id, similarity = self._recognize_face()
             
             if employee_id is None:
@@ -51,14 +47,12 @@ class Recognition:
             
             Logger.success(f"Wajah dikenali! Similarity: {similarity:.3f}")
             
-            # Step 3: Liveness check (DISABLED)
             # Logger.info("Melakukan liveness check...")
             # if not self.liveness_checker.check(self.camera):
             #     self.log_repo.log_access(employee_id, 'DENIED', 'Liveness check gagal')
             #     Logger.error("AKSES DITOLAK - Liveness check gagal")
             #     return False
             
-            # Step 4: Check access rights
             has_access = self._check_access_rights(employee_id)
             
             if not has_access:
@@ -66,7 +60,6 @@ class Recognition:
                 Logger.error("AKSES DITOLAK - Tidak memiliki hak akses")
                 return False
             
-            # Step 5: Grant access
             self._grant_access(employee_id)
             return True
         
@@ -91,12 +84,10 @@ class Recognition:
             frame_count += 1
             display_frame = frame.copy()
             
-            # Show remaining time
             remaining = int(timer.remaining())
             cv2.putText(display_frame, f"Time: {remaining}s", (10, 30),
                        cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
             
-            # Process face detection every N frames
             if frame_count % process_interval == 0:
                 face, msg = self.detector.get_single_face(frame, self.settings.CONFIDENCE_THRESHOLD)
                 
@@ -104,14 +95,11 @@ class Recognition:
                     cv2.putText(display_frame, msg, (10, 60),
                                cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 0, 255), 2)
                 else:
-                    # Validate quality
                     is_valid, result = self.quality_checker.validate_face(frame, face)
                     
                     if is_valid:
-                        # Extract embedding
                         embedding = self.embedding_extractor.extract(face)
                         
-                        # Match with database
                         stored_embeddings = self.embedding_repo.get_all()
                         employee_id, similarity = self.matcher.match(embedding, stored_embeddings)
                         
@@ -119,7 +107,7 @@ class Recognition:
                             cv2.putText(display_frame, f"RECOGNIZED! Sim: {similarity:.2f}", 
                                        (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
                             cv2.imshow('Access Control', display_frame)
-                            cv2.waitKey(500)  # Show result for 500ms
+                            cv2.waitKey(500)
                             cv2.destroyAllWindows()
                             return employee_id, similarity
                         else:
@@ -140,14 +128,11 @@ class Recognition:
     
     def _check_access_rights(self, employee_id):
         """Check apakah pegawai punya hak akses"""
-        # Get employee info
         employee = self.pegawai_repo.get_by_id(employee_id)
         
         if employee is None:
             return False
         
-        # For now, all registered employees have access
-        # You can implement more complex logic here
         return True
     
     def _grant_access(self, employee_id):
@@ -157,13 +142,10 @@ class Recognition:
         Logger.success(f"Nama: {employee['nama']}")
         Logger.success(f"NIP: {employee['nip']}")
         
-        # Log access
         self.log_repo.log_access(employee_id, 'GRANTED', 'Akses berhasil')
         
-        # Reset failed attempts
         self.failed_attempts = 0
         
-        # Simulate door opening
         self._open_door()
     
     def _open_door(self):
@@ -190,7 +172,6 @@ class Recognition:
         if self.lockout_until > time.time():
             return True
         
-        # Reset if lockout expired
         if self.lockout_until > 0:
             self.lockout_until = 0
             self.failed_attempts = 0
