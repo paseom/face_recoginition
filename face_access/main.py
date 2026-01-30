@@ -1,3 +1,9 @@
+# ==================== main.py ====================
+"""
+Face Recognition Door Access System
+Entry point untuk sistem
+"""
+
 from config.settings import Settings
 from core.camera import Camera
 from core.detector import FaceDetector
@@ -13,6 +19,7 @@ from enrollment.enroll import Enrollment
 from recognition.recognize import Recognition
 from utils.logger import Logger
 
+
 class FaceAccessSystem:
     """Main system class"""
     
@@ -20,17 +27,21 @@ class FaceAccessSystem:
         """Initialize all components"""
         Logger.info("Initializing Face Access System...")
         
+        # Load settings
         self.settings = Settings()
         
+        # Initialize database
         self.database = Database(self.settings.DB_CONFIG)
         if not self.database.connect():
             Logger.error("Gagal koneksi ke database!")
             raise Exception("Database connection failed")
         
+        # Initialize repositories
         self.pegawai_repo = PegawaiRepository(self.database)
         self.embedding_repo = EmbeddingRepository(self.database)
         self.log_repo = LogRepository(self.database, self.pegawai_repo)
         
+        # Initialize core components
         self.detector = FaceDetector()
         self.quality_checker = QualityChecker(
             blur_threshold=self.settings.BLUR_THRESHOLD,
@@ -40,6 +51,7 @@ class FaceAccessSystem:
         self.embedding_extractor = EmbeddingExtractor(self.detector)
         self.matcher = FaceMatcher(threshold=self.settings.RECOGNITION_SIMILARITY)
         
+        # Camera will be initialized per session
         self.camera = None
         # self.liveness_checker = None
         
@@ -65,13 +77,16 @@ class FaceAccessSystem:
         )
         # self.liveness_checker = LivenessChecker(self.detector, self.quality_checker)
     
-    def enroll_employee(self, nama, nip, mode='video'):
-        """Daftarkan pegawai baru"""
+    def enroll_employee(self, nama, nip, mode='video', image_paths=None):
+        """
+        Daftarkan pegawai baru
+        image_paths: Optional list of image paths (untuk Streamlit mode)
+        """
         if mode == 'video':
             self._init_camera_for_enrollment()
         
         enrollment = Enrollment(
-            camera=self.camera if mode == 'video' else None,
+            camera=self.camera,
             detector=self.detector,
             quality_checker=self.quality_checker,
             # liveness_checker=self.liveness_checker,
@@ -81,7 +96,7 @@ class FaceAccessSystem:
             settings=self.settings
         )
         
-        return enrollment.enroll(nama, nip, mode)
+        return enrollment.enroll(nama, nip, mode, image_paths)
     
     def recognize_face(self):
         """Face recognition untuk akses pintu"""
@@ -101,14 +116,30 @@ class FaceAccessSystem:
         )
         
         return recognition.recognize()
+
+    def get_current_user_name(self):
+        """Return nama user yang terakhir diberikan akses (jika ada)"""
+        try:
+            # Prefer in-memory cached name set at log time
+            name = getattr(self.log_repo, 'last_granted_name', None)
+            if name:
+                return name
+            # Fallback to DB query
+            name = self.log_repo.get_last_granted_name()
+            return name if name is not None else ""
+        except Exception:
+            return ""
     
     def show_menu(self):
         """Tampilkan menu utama"""
         while True:
+            print("\n" + "="*60)
             print(" "*15 + "FACE ACCESS SYSTEM")
+            print("="*60)
             print("1. Pendaftaran Pegawai Baru")
             print("2. Face Recognition (Akses Pintu)")
             print("3. Keluar")
+            print("="*60)
             
             choice = input("\nPilih menu (1-3): ").strip()
             
@@ -124,7 +155,9 @@ class FaceAccessSystem:
     
     def _menu_enrollment(self):
         """Menu pendaftaran"""
+        print("\n" + "="*60)
         print(" "*15 + "PENDAFTARAN PEGAWAI")
+        print("="*60)
         
         nama = input("Nama Lengkap: ").strip()
         nip = input("NIP (10 digit): ").strip()
@@ -138,16 +171,19 @@ class FaceAccessSystem:
             return
         
         # Pilihan mode enrollment
+        print("\n" + "="*60)
         print("PILIH METODE PENDAFTARAN")
+        print("="*60)
         print("1. Rekam Video (Webcam)")
         print("   - Real-time dari webcam")
-        print("   - Patikan pencahayaan bagus")
-        print("   - Wajah harus terlihat jelas")
+        print("   - Dengan liveness check")
+        print("   - Lebih aman")
         print()
         print("2. Upload Gambar")
-        print("   - Pilih 5-10 foto wajah dari folder")
+        print("   - Upload 5-10 foto wajah")
         print("   - Angle & ekspresi berbeda")
-        print("   - Minimal 5 gambar untuk diterima")
+        print("   - Tanpa liveness check")
+        print("="*60)
         
         mode_choice = input("\nPilih metode (1/2): ").strip()
         
@@ -157,7 +193,7 @@ class FaceAccessSystem:
             Logger.info("Tekan 'q' untuk membatalkan")
         elif mode_choice == '2':
             mode = 'upload'
-            Logger.info("Mode: Upload Gambar (GUI File Browser)")
+            Logger.info("Mode: Upload Gambar")
         else:
             Logger.warning("Pilihan tidak valid!")
             return
@@ -174,7 +210,9 @@ class FaceAccessSystem:
     
     def _menu_recognition(self):
         """Menu face recognition"""
+        print("\n" + "="*60)
         print(" "*15 + "FACE RECOGNITION")
+        print("="*60)
         
         Logger.info("Memulai face recognition...")
         Logger.info("Tekan 'q' untuk membatalkan")

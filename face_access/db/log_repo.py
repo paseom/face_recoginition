@@ -23,6 +23,15 @@ class LogRepository:
             # Get employee info untuk display
             if id_pegawai:
                 self._display_log_info(id_pegawai, status)
+                # Jika status GRANTED, simpan nama terakhir secara lokal agar UI bisa mengaksesnya segera
+                if status == 'GRANTED' and self.pegawai_repo is not None:
+                    try:
+                        emp = self.pegawai_repo.get_by_id(id_pegawai)
+                        if emp and emp.get('nama'):
+                            self.last_granted_name = emp.get('nama')
+                    except Exception:
+                        # jangan ganggu alur utama jika gagal
+                        pass
             
             return cursor.lastrowid
         except mysql.connector.Error as e:
@@ -42,3 +51,22 @@ class LogRepository:
                 Logger.info(f"Log: ID={id_pegawai}, Nama={nama}, Status={status}")
         except Exception as e:
             Logger.error(f"Error getting employee info: {e}")
+
+    def get_last_granted_name(self):
+        """Return nama pegawai dari entri access_log terakhir yang berstatus GRANTED"""
+        conn = self.db.get_connection()
+        cursor = conn.cursor(dictionary=True)
+        try:
+            cursor.execute(
+                "SELECT l.id_pegawai, p.nama FROM access_log l JOIN pegawai p ON l.id_pegawai = p.id_pegawai "
+                "WHERE l.status = 'GRANTED' ORDER BY l.id DESC LIMIT 1"
+            )
+            row = cursor.fetchone()
+            if row and row.get('nama'):
+                return row.get('nama')
+            return None
+        except Exception as e:
+            Logger.error(f"Error fetching last granted name: {e}")
+            return None
+        finally:
+            cursor.close()

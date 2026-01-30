@@ -1,3 +1,4 @@
+import mysql
 class PegawaiRepository:
     """Repository untuk tabel pegawai"""
     

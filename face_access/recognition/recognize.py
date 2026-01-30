@@ -30,11 +30,11 @@ class Recognition:
         if self._is_locked_out():
             remaining = int(self.lockout_until - time.time())
             Logger.warning(f"Sistem terkunci. Coba lagi dalam {remaining} detik")
-            return False
+            return None
         
         if not self.camera.open():
             Logger.error("Gagal membuka kamera")
-            return False
+            return None
         
         try:
             employee_id, similarity = self._recognize_face()
@@ -43,7 +43,7 @@ class Recognition:
                 self._handle_failed_attempt()
                 self.log_repo.log_access(None, 'DENIED', 'Wajah tidak dikenali')
                 Logger.error("AKSES DITOLAK - Wajah tidak dikenali")
-                return False
+                return None
             
             Logger.success(f"Wajah dikenali! Similarity: {similarity:.3f}")
             
@@ -61,7 +61,7 @@ class Recognition:
                 return False
             
             self._grant_access(employee_id)
-            return True
+            return employee_id
         
         finally:
             self.camera.release()
