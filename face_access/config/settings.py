@@ -8,24 +8,24 @@ class Settings:
         'database': 'pegawai_bpk'
     }
     
-    ENROLLMENT_FPS = 10
-    RECOGNITION_FPS = 5
+    ENROLLMENT_FPS = 10 # Frame per second untuk enrollment
+    RECOGNITION_FPS = 5 # Frame per second untuk recognition
     
-    FACE_SIZE_THRESHOLD = 0.05  
-    CONFIDENCE_THRESHOLD = 0.6
-    MAX_FACES = 1
+    FACE_SIZE_THRESHOLD = 0.05 # Proporsi minimum ukuran wajah terhadap frame
+    CONFIDENCE_THRESHOLD = 0.6 # Ambang batas confidence deteksi wajah
+    MAX_FACES = 1 # Maksimum jumlah wajah yang dideteksi dalam satu frame
     
-    BLUR_THRESHOLD = 60
-    YAW_THRESHOLD = 35
-    PITCH_THRESHOLD = 35
+    BLUR_THRESHOLD = 60 # Ambang batas blur (0-100)
+    YAW_THRESHOLD = 35 # Ambang batas kemiringan kanan-kiri (derajat)
+    PITCH_THRESHOLD = 35 # Ambang batas kemiringan atas-bawah (derajat)
     EYE_LANDMARK_THRESHOLD = 0.6
     NOSE_LANDMARK_THRESHOLD = 0.6
     
     ENROLLMENT_SAMPLES = 10
     ENROLLMENT_SIMILARITY = 0.7
-    RECOGNITION_SIMILARITY = 0.6
+    RECOGNITION_SIMILARITY = 0.5
     
-    REAL_TIME_CONSTRAINT = 1.0
+    REAL_TIME_CONSTRAINT = 5.0  # Timeout recognition (detik) — dikali 3 menjadi 15 detik total
     
     COOLDOWN = 5
     MAX_ATTEMPTS = 3
