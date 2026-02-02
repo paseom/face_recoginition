@@ -18,6 +18,7 @@ from db.log_repo import LogRepository
 from enrollment.enroll import Enrollment
 from recognition.recognize import Recognition
 from utils.logger import Logger
+from utils.camera_detector import CameraDetector
 
 
 class FaceAccessSystem:
@@ -29,6 +30,10 @@ class FaceAccessSystem:
         
         # Load settings
         self.settings = Settings()
+        
+        # Print camera info for debugging
+        Logger.info("Scanning available cameras...")
+        CameraDetector.print_camera_info()
         
         # Initialize database
         self.database = Database(self.settings.DB_CONFIG)
@@ -59,8 +64,9 @@ class FaceAccessSystem:
     
     def _init_camera_for_enrollment(self):
         """Initialize camera untuk enrollment"""
+        camera_idx = self.settings.get_camera_index()
         self.camera = Camera(
-            camera_index=self.settings.CAMERA_INDEX,
+            camera_index=camera_idx,
             width=self.settings.CAMERA_WIDTH,
             height=self.settings.CAMERA_HEIGHT,
             fps=self.settings.ENROLLMENT_FPS
@@ -69,8 +75,9 @@ class FaceAccessSystem:
     
     def _init_camera_for_recognition(self):
         """Initialize camera untuk recognition"""
+        camera_idx = self.settings.get_camera_index()
         self.camera = Camera(
-            camera_index=self.settings.CAMERA_INDEX,
+            camera_index=camera_idx,
             width=self.settings.CAMERA_WIDTH,
             height=self.settings.CAMERA_HEIGHT,
             fps=self.settings.RECOGNITION_FPS

@@ -22,7 +22,7 @@ class Settings:
     NOSE_LANDMARK_THRESHOLD = 0.6
     
     ENROLLMENT_SAMPLES = 10
-    ENROLLMENT_SIMILARITY = 0.7
+    ENROLLMENT_SIMILARITY = 0.6
     RECOGNITION_SIMILARITY = 0.5
     
     REAL_TIME_CONSTRAINT = 5.0  # Timeout recognition (detik) — dikali 3 menjadi 15 detik total
@@ -33,4 +33,31 @@ class Settings:
     
     CAMERA_WIDTH = 640
     CAMERA_HEIGHT = 480
-    CAMERA_INDEX = 0
+    CAMERA_AUTO_DETECT = True  # Auto-detect USB camera (jika ada), default ke built-in jika tidak
+    CAMERA_INDEX = 0  # Manual camera index (dipakai jika CAMERA_AUTO_DETECT=False)
+    PREFER_USB_CAMERA = True  # Jika True & CAMERA_AUTO_DETECT=True, prioritas USB camera
+    
+    @classmethod
+    def get_camera_index(cls):
+        """
+        Return camera index berdasarkan setting auto-detect
+        
+        Returns:
+            int: camera index yang akan digunakan
+        """
+        if not cls.CAMERA_AUTO_DETECT:
+            return cls.CAMERA_INDEX
+        
+        from utils.camera_detector import CameraDetector
+        
+        if cls.PREFER_USB_CAMERA:
+            # Cari USB camera dulu (index > 0)
+            usb_idx = CameraDetector.find_usb_camera(exclude_builtin=True)
+            if usb_idx != -1:
+                return usb_idx
+            # Fallback ke built-in jika USB tidak ada
+            return 0
+        else:
+            # Pakai camera pertama yang tersedia
+            available = CameraDetector.get_available_cameras()
+            return available[0] if available else 0

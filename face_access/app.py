@@ -50,206 +50,216 @@ elif menu == "🚪 Face Recognition":
 if st.session_state.page == "enrollment":
     st.header("📝 Pendaftaran Pegawai Baru")
     
-    with st.form("enrollment_form"):
-        st.subheader("Data Pegawai")
+    # METODE DIPILIH DI LUAR FORM - agar re-render langsung
+    st.divider()
+    st.subheader("Data Pegawai")
+    nama = st.text_input("Nama Lengkap", max_chars=100, key="emp_name")
+    nip = st.text_input("NIP (10 digit)", max_chars=10, key="emp_nip")
+    st.divider()
+    
+    st.subheader("Pilih Metode Pendaftaran")
+    
+    metode = st.radio(
+        "Metode:",
+        ["Upload Gambar", "Rekam Video (Webcam)"],
+        key="enrollment_method",
+        horizontal=True
+    )
+    
+    st.divider()
+    
+    # ===== UPLOAD GAMBAR =====
+    if metode == "Upload Gambar":
+        st.subheader("📸 Upload Foto Wajah")
+        st.info("Silakan upload 5-10 foto wajah dengan angle dan ekspresi berbeda")
         
-        nama = st.text_input("Nama Lengkap", placeholder="Contoh: John Doe")
-        nip = st.text_input("NIP (10 digit)", max_chars=10, placeholder="1234567890")
+        # Init session state untuk track delete
+        if "should_clear_uploader" not in st.session_state:
+            st.session_state.should_clear_uploader = False
         
-        st.divider()
-        st.subheader("Metode Pendaftaran")
+        # Callback untuk delete all
+        def clear_uploader():
+            st.session_state.should_clear_uploader = True
         
-        metode = st.radio(
-            "Pilih metode:",
-            ["Upload Gambar", "Rekam Video (Webcam)"],
-            help="Upload Gambar: Siapkan 5-10 foto wajah\nRekam Video: Menggunakan webcam real-time"
+        # File uploader
+        uploaded_files = st.file_uploader(
+            "Pilih gambar (JPG, JPEG, PNG)",
+            type=["jpg", "jpeg", "png"],
+            accept_multiple_files=True,
+            key="enrollment_images"
         )
         
-        uploaded_files = None
+        # Reset flag setelah widget render
+        if st.session_state.should_clear_uploader:
+            st.session_state.should_clear_uploader = False
         
-        if metode == "Upload Gambar":
-            st.info("📸 Upload 5-10 foto wajah dengan angle & ekspresi berbeda")
+        if uploaded_files:
+            # Status & actions
+            col1, col2, col3 = st.columns([2, 1, 1])
             
-            uploaded_files = st.file_uploader(
-                "Pilih gambar (JPG, JPEG, PNG)",
-                type=["jpg", "jpeg", "png"],
-                accept_multiple_files=True,
-                help="Tekan Ctrl+Click untuk pilih multiple files"
+            with col1:
+                if len(uploaded_files) < 5:
+                    st.warning(f"⚠️ {len(uploaded_files)} gambar. Minimal 5 diperlukan!")
+                else:
+                    st.success(f"✅ {len(uploaded_files)} gambar siap")
+            
+            # Preview thumbnails
+            st.subheader("Preview")
+            
+            # Display in 4 columns
+            cols = st.columns(4)
+            for idx, file in enumerate(uploaded_files):
+                with cols[idx % 4]:
+                    # Display thumbnail
+                    st.image(file, use_container_width=True)
+                    # Display filename (truncated)
+                    filename = file.name if len(file.name) <= 20 else file.name[:17] + "..."
+                    st.caption(filename)
+            st.divider()            
+        with st.form("enrollment_form_video", border=True):         
+            submitted = st.form_submit_button(
+                "🚀 Mulai Pendaftaran",
+                type="primary",
+                use_container_width=True
+            )
+    
+    # ===== REKAM VIDEO =====
+    elif metode == "Rekam Video (Webcam)":
+        st.subheader("🎥 Rekam Menggunakan Webcam")
+        st.info("Sistem akan merekam 10 sampel wajah otomatis")
+        
+        st.markdown("""
+        **Petunjuk:**
+        1. Pastikan webcam sudah terhubung
+        2. Posisikan wajah di depan kamera
+        3. Variasikan angle dan ekspresi wajah (angguk, pandang kanan-kiri)
+        4. Proses rekam ~ 30-60 detik
+        5. Sistem akan otomatis mengambil 10 sampel terbaik
+        """)
+        
+        # FORM DATA PEGAWAI
+        st.divider()            
+        with st.form("enrollment_form_video", border=True):         
+            submitted = st.form_submit_button(
+                "🚀 Mulai Pendaftaran",
+                type="primary",
+                use_container_width=True
             )
             
-            if uploaded_files:
-                if len(uploaded_files) < 5:
-                    st.warning(f"⚠️ Hanya {len(uploaded_files)} gambar. Minimal 5 gambar diperlukan!")
+            if submitted:
+                if not nama or not nip:
+                    st.error("❌ Nama dan NIP wajib diisi!")
+                elif len(nip) != 10:
+                    st.error("❌ NIP harus 10 digit!")
                 else:
-                    st.success(f"✅ {len(uploaded_files)} gambar siap diproses")
+                    st.divider()
+                    st.subheader("⏳ Proses Perekaman")
                     
-                    # Preview uploaded files
-                    with st.expander("📋 Lihat file yang diupload"):
-                        cols = st.columns(3)
-                        for idx, file in enumerate(uploaded_files):
-                            with cols[idx % 3]:
-                                st.image(file, caption=file.name, use_container_width=True)
-        
-        else:  # Rekam Video
-            st.warning("⚠️ Webcam akan diaktifkan setelah klik tombol di bawah")
-        
-        st.divider()
-        
-        # Submit button
-        submitted = st.form_submit_button(
-            "🚀 Mulai Pendaftaran",
-            type="primary",
-            use_container_width=True
-        )
-    
-    # ===== PROCESS SETELAH SUBMIT =====
-    if submitted:
-        # Validasi input
-        if not nama or not nip:
-            st.error("❌ Nama dan NIP wajib diisi!")
-            st.stop()
-        
-        if len(nip) != 10:
-            st.error("❌ NIP harus 10 digit!")
-            st.stop()
-        
-        if metode == "Upload Gambar":
-            if not uploaded_files:
-                st.error("❌ Belum ada gambar yang diupload!")
-                st.stop()
-            
-            if len(uploaded_files) < 5:
-                st.error(f"❌ Minimal 5 gambar diperlukan! Saat ini hanya {len(uploaded_files)} gambar")
-                st.stop()
-            
-            # Process uploaded images
-            with st.spinner("⏳ Memproses gambar..."):
-                # Create temp directory
-                temp_dir = tempfile.mkdtemp()
-                
-                # Save uploaded files to temp directory
-                image_paths = []
-                for file in uploaded_files:
-                    file_path = os.path.join(temp_dir, file.name)
-                    with open(file_path, "wb") as f:
-                        f.write(file.getbuffer())
-                    image_paths.append(file_path)
-                
-                st.info(f"📁 {len(image_paths)} gambar disimpan di temporary folder")
-                
-                # Store in session state for enrollment process
-                st.session_state.temp_dir = temp_dir
-                st.session_state.uploaded_image_paths = image_paths
-                
-                # Call enrollment with upload mode
-                try:
-                    success = system.enroll_employee(
-                        nama=nama,
-                        nip=nip,
-                        mode="upload",
-                        image_paths=image_paths  # Pass paths directly
-                    )
-                    
-                    if success:
-                        st.success("✅ Pendaftaran berhasil!")
-                        st.balloons()
-                        
-                        # Show success info
-                        st.info(f"""
-                        **Pegawai berhasil terdaftar:**
-                        - Nama: {nama}
-                        - NIP: {nip}
-                        - Metode: Upload Gambar
-                        - Jumlah foto: {len(uploaded_files)}
-                        """)
-                        
-                        # Cleanup temp files
-                        import shutil
+                    with st.spinner("⏳ Membuka webcam..."):
                         try:
-                            shutil.rmtree(temp_dir)
-                        except:
-                            pass
-                        
-                        # Reset session state
-                        st.session_state.temp_dir = None
-                        st.session_state.uploaded_image_paths = []
-                    else:
-                        st.error("❌ Pendaftaran gagal! Cek kualitas gambar dan coba lagi.")
-                        st.warning("Tips: Pastikan semua foto jelas, tidak blur, dan wajah terlihat dengan baik")
-                        
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-                    import traceback
-                    with st.expander("Detail Error"):
-                        st.code(traceback.format_exc())
-        
-        else:  # Rekam Video
-            with st.spinner("⏳ Membuka webcam..."):
-                try:
-                    st.warning("🎥 Webcam akan terbuka. Ikuti instruksi di window yang muncul.")
-                    st.info("💡 Tekan 'q' untuk membatalkan")
-                    
-                    success = system.enroll_employee(
-                        nama=nama,
-                        nip=nip,
-                        mode="video"
-                    )
-                    
-                    if success:
-                        st.success("✅ Pendaftaran berhasil!")
-                        st.balloons()
-                        
-                        st.info(f"""
-                        **Pegawai berhasil terdaftar:**
-                        - Nama: {nama}
-                        - NIP: {nip}
-                        - Metode: Rekam Video
-                        """)
-                    else:
-                        st.error("❌ Pendaftaran gagal!")
-                        
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
+                            st.warning("🎥 Webcam sedang membuka. Ikuti instruksi di window yang muncul.")
+                            st.info("💡 Tekan 'q' untuk membatalkan rekaman")
+                            
+                            success = system.enroll_employee(
+                                nama=nama,
+                                nip=nip,
+                                mode="video"
+                            )
+                            
+                            if success:
+                                st.success("✅ Pendaftaran berhasil!")
+                                st.info(f"""
+                                **Pegawai berhasil terdaftar:**
+                                - Nama: {nama}
+                                - NIP: {nip}
+                                - Metode: Rekam Video
+                                """)
+                            else:
+                                st.error("❌ Pendaftaran gagal!")
+                                st.warning("Tips: Pastikan pencahayaan cukup dan wajah terlihat dengan jelas")
+                                
+                        except Exception as e:
+                            st.error(f"❌ Error: {str(e)}")
+                            with st.expander("Detail Error"):
+                                import traceback
+                                st.code(traceback.format_exc())
 
 # ===== RECOGNITION PAGE =====
 elif st.session_state.page == "recognition":
     st.header("🚪 Face Recognition - Akses Pintu")
     
-    st.info("### Instruksi:")
-    st.write("1. Klik tombol **Mulai Recognition** di bawah")
-    st.write("2. Webcam akan terbuka")
-    st.write("3. Posisikan wajah Anda di depan kamera")
-    st.write("4. Ikuti instruksi liveness check")
-    st.write("5. Sistem akan verifikasi identitas Anda")
+    st.divider()
     
-    st.warning("⚠️ Webcam akan diaktifkan setelah klik tombol")
+    col1, col2 = st.columns([2, 1])
     
-    col1, col2, col3 = st.columns([1, 2, 1])
+    with col1:
+        st.subheader("Langkah-langkah:")
+        st.markdown("""
+        1. Klik tombol **Mulai Recognition**
+        2. Posisikan wajah di depan kamera
+        3. Sistem akan otomatis verifikasi
+        4. Pintu terbuka jika pengenalan berhasil
+        """)
     
     with col2:
-        if st.button("🚀 Mulai Recognition", type="primary", use_container_width=True):
+        st.info("""
+        ⏱️ **Timeout:** 15 detik
+        
+        🔄 **Max Attempts:** 3x
+        
+        ⏸️ **Cooldown:** 5 detik
+        """)
+    
+    st.divider()
+    
+    if st.button("🚀 Mulai Recognition", type="primary", use_container_width=True, key="recognition_btn"):
+        try:
             with st.spinner("⏳ Membuka webcam..."):
+                st.info("🎥 Webcam sedang dibuka. Posisikan wajah Anda di depan kamera.")
+                
+                emp_id = system.recognize_face()
+
+            if emp_id:
+                # Ambil data pegawai dari repository
                 try:
-                    st.info("🎥 Webcam terbuka. Posisikan wajah Anda.")
+                    peg = system.pegawai_repo.get_by_id(emp_id)
+                    nama_user = peg.get('nama') if peg else "Pengguna"
+                except Exception:
+                    nama_user = "Pengguna"
+
+                st.success("✅ AKSES DIBERIKAN!")
+                st.success(f"🚪 Pintu terbuka, Selamat datang {nama_user}!")
+                
+                # Show success container
+                with st.container(border=True):
+                    st.markdown(f"""
+                    **Status:** ✅ Berhasil
                     
-                    emp_id = system.recognize_face()
-
-                    if emp_id:
-                        # Ambil data pegawai dari repository (nama)
-                        try:
-                            peg = system.pegawai_repo.get_by_id(emp_id)
-                            nama_user = peg.get('nama') if peg else None
-                        except Exception:
-                            nama_user = None
-
-                        st.success("✅ AKSES DIBERIKAN!")
-                        st.success(f"🚪 Pintu terbuka, Selamat Datang {nama_user}")
-                    else:
-                        st.error("❌ AKSES DITOLAK!")
-                        st.warning("Wajah tidak dikenali")
-                        
-                except Exception as e:
-                    st.error(f"❌ Error: {str(e)}")
-                    import traceback
-                    with st.expander("Detail Error"):
-                        st.code(traceback.format_exc())
+                    **Nama:** {nama_user}
+                    
+                    **ID:** {emp_id}
+                    """)
+            else:
+                st.error("❌ AKSES DITOLAK!")
+                st.error("Wajah tidak dikenali atau tidak terdaftar")
+                
+                with st.container(border=True):
+                    st.markdown("""
+                    **Kemungkinan penyebab:**
+                    - Wajah belum terdaftar di sistem
+                    - Kualitas gambar buruk (terlalu gelap/blur)
+                    - Pencahayaan tidak optimal
+                    - Wajah tidak terdeteksi dengan jelas
+                    
+                    **Solusi:**
+                    1. Pastikan pencahayaan cukup
+                    2. Posisikan wajah lebih dekat ke kamera
+                    3. Cek apakah wajah sudah terdaftar
+                    4. Coba lagi dalam beberapa detik
+                    """)
+                    
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+            with st.expander("Detail Error"):
+                import traceback
+                st.code(traceback.format_exc())
