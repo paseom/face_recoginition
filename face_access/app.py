@@ -16,12 +16,6 @@ if "system" not in st.session_state:
 if "page" not in st.session_state:
     st.session_state.page = "home"
 
-if "uploaded_files" not in st.session_state:
-    st.session_state.uploaded_files = []
-
-if "temp_dir" not in st.session_state:
-    st.session_state.temp_dir = None
-
 system = st.session_state.system
 
 st.title("🔐 Face Access System")
@@ -29,22 +23,28 @@ st.title("🔐 Face Access System")
 # ===== MENU =====
 menu = st.radio(
     "Pilih Menu",
-    ["🏠 Home", "📝 Pendaftaran Pegawai", "🚪 Face Recognition"],
+    ["🏠 Home", "📝 Pendaftaran Pegawai", "🚪 Face Recognition", "👥 Crowd Recognition"],
     horizontal=True
 )
 
 if menu == "🏠 Home":
     st.session_state.page = "home"
-    st.info("### Selamat datang di Face Access System")
-    st.write("Pilih menu di atas untuk memulai:")
-    st.write("- **📝 Pendaftaran Pegawai**: Daftarkan wajah pegawai baru")
-    st.write("- **🚪 Face Recognition**: Verifikasi akses dengan face recognition")
 
 elif menu == "📝 Pendaftaran Pegawai":
     st.session_state.page = "enrollment"
 
 elif menu == "🚪 Face Recognition":
     st.session_state.page = "recognition"
+
+elif menu == "👥 Crowd Recognition":
+    st.session_state.page = "crowd"
+
+# ===== HOME =====
+if st.session_state.page == "home":
+    st.info("### Selamat datang di Face Access System")
+    st.write("- **📝 Pendaftaran Pegawai**")
+    st.write("- **🚪 Face Recognition (Akses Pintu)**")
+    st.write("- **👥 Crowd Recognition (Video/CCTV)**")
 
 # ===== ENROLLMENT PAGE =====
 if st.session_state.page == "enrollment":
@@ -339,3 +339,41 @@ elif st.session_state.page == "recognition":
             with st.expander("Detail Error"):
                 import traceback
                 st.code(traceback.format_exc())
+                
+# ===== CROWD RECOGNITION =====
+elif st.session_state.page == "crowd":
+    st.header("👥 Crowd Recognition (Video / CCTV)")
+
+    video_source = st.text_input("Path video atau 0 untuk webcam", value="0")
+    output_video = st.text_input("Path output video (opsional)")
+    is_outdoor = st.checkbox("Outdoor")
+    sample_fps = st.number_input("Durasi Rekaman", min_value=1, max_value=30, value=5)
+
+    if st.button("🚀 Mulai Crowd Detection"):
+        if video_source == "0":
+            video_source = 0
+
+        output_path = output_video if output_video else None
+
+        with st.spinner("Memproses video..."):
+            summary = system.recognize_from_crowd_video(
+                video_source=video_source,
+                output_path=output_path,
+                is_outdoor=is_outdoor,
+                sample_fps=sample_fps
+            )
+
+        if summary:
+            st.success("Proses selesai")
+            st.write(f"Total Frame: {summary['total_frames']}")
+            st.write(f"Unique People: {summary['unique_people']}")
+
+            if summary["people"]:
+                st.subheader("Orang Terdeteksi")
+                for p in summary["people"]:
+                    st.write(f"- {p['nama']} (NIP: {p['nip']}) muncul {p['count']}x")
+
+            if st.button("💾 Simpan Report"):
+                report_path = st.text_input("Path report (.txt)", value="crowd_report.txt")
+                system.crowd_detector.generate_detection_report(summary, report_path)
+                st.success("Report disimpan")

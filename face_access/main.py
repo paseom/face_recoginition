@@ -1,4 +1,3 @@
-# ==================== main.py ====================
 """
 Face Recognition Door Access System
 Entry point untuk sistem
@@ -8,7 +7,6 @@ from config.settings import Settings
 from core.camera import Camera
 from core.detector import FaceDetector
 from core.quality import QualityChecker
-# from core.liveness import LivenessChecker
 from core.embedding import EmbeddingExtractor
 from core.matcher import FaceMatcher
 from db.database import Database
@@ -17,36 +15,24 @@ from db.embedding_repo import EmbeddingRepository
 from db.log_repo import LogRepository
 from enrollment.enroll import Enrollment
 from recognition.recognize import Recognition
+from recognition.crowd_recognize import CrowdDetectionComplete
 from utils.logger import Logger
-from utils.camera_detector import CameraDetector
 
 
 class FaceAccessSystem:
-    """Main system class"""
-    
     def __init__(self):
-        """Initialize all components"""
         Logger.info("Initializing Face Access System...")
-        
-        # Load settings
+
         self.settings = Settings()
-        
-        # Print camera info for debugging
-        Logger.info("Scanning available cameras...")
-        CameraDetector.print_camera_info()
-        
-        # Initialize database
+
         self.database = Database(self.settings.DB_CONFIG)
         if not self.database.connect():
-            Logger.error("Gagal koneksi ke database!")
             raise Exception("Database connection failed")
-        
-        # Initialize repositories
+
         self.pegawai_repo = PegawaiRepository(self.database)
         self.embedding_repo = EmbeddingRepository(self.database)
-        self.log_repo = LogRepository(self.database, self.pegawai_repo)
-        
-        # Initialize core components
+        self.log_repo = LogRepository(self.database)
+
         self.detector = FaceDetector()
         self.quality_checker = QualityChecker(
             blur_threshold=self.settings.BLUR_THRESHOLD,
@@ -55,65 +41,12 @@ class FaceAccessSystem:
         )
         self.embedding_extractor = EmbeddingExtractor(self.detector)
         self.matcher = FaceMatcher(threshold=self.settings.RECOGNITION_SIMILARITY)
-        
-        # Camera will be initialized per session
+
         self.camera = None
-        # self.liveness_checker = None
-        
-        Logger.success("System initialized successfully!")
-    
-    def _init_camera_for_enrollment(self):
-        """Initialize camera untuk enrollment"""
-        camera_idx = self.settings.get_camera_index()
-        self.camera = Camera(
-            camera_index=camera_idx,
-            width=self.settings.CAMERA_WIDTH,
-            height=self.settings.CAMERA_HEIGHT,
-            fps=self.settings.ENROLLMENT_FPS
-        )
-        # self.liveness_checker = LivenessChecker(self.detector, self.quality_checker)
-    
-    def _init_camera_for_recognition(self):
-        """Initialize camera untuk recognition"""
-        camera_idx = self.settings.get_camera_index()
-        self.camera = Camera(
-            camera_index=camera_idx,
-            width=self.settings.CAMERA_WIDTH,
-            height=self.settings.CAMERA_HEIGHT,
-            fps=self.settings.RECOGNITION_FPS
-        )
-        # self.liveness_checker = LivenessChecker(self.detector, self.quality_checker)
-    
-    def enroll_employee(self, nama, nip, mode='video', image_paths=None):
-        """
-        Daftarkan pegawai baru
-        image_paths: Optional list of image paths (untuk Streamlit mode)
-        """
-        if mode == 'video':
-            self._init_camera_for_enrollment()
-        
-        enrollment = Enrollment(
-            camera=self.camera,
+        self.recognition_instance = None
+
+        self.crowd_detector = CrowdDetectionComplete(
             detector=self.detector,
-            quality_checker=self.quality_checker,
-            # liveness_checker=self.liveness_checker,
-            embedding_extractor=self.embedding_extractor,
-            pegawai_repo=self.pegawai_repo,
-            embedding_repo=self.embedding_repo,
-            settings=self.settings
-        )
-        
-        return enrollment.enroll(nama, nip, mode, image_paths)
-    
-    def recognize_face(self):
-        """Face recognition untuk akses pintu"""
-        self._init_camera_for_recognition()
-        
-        recognition = Recognition(
-            camera=self.camera,
-            detector=self.detector,
-            quality_checker=self.quality_checker,
-            # liveness_checker=self.liveness_checker,
             embedding_extractor=self.embedding_extractor,
             matcher=self.matcher,
             pegawai_repo=self.pegawai_repo,
@@ -121,130 +54,198 @@ class FaceAccessSystem:
             log_repo=self.log_repo,
             settings=self.settings
         )
-        
-        return recognition.recognize()
 
-    def get_current_user_name(self):
-        """Return nama user yang terakhir diberikan akses (jika ada)"""
-        try:
-            # Prefer in-memory cached name set at log time
-            name = getattr(self.log_repo, 'last_granted_name', None)
-            if name:
-                return name
-            # Fallback to DB query
-            name = self.log_repo.get_last_granted_name()
-            return name if name is not None else ""
-        except Exception:
-            return ""
-    
+        Logger.success("System initialized successfully!")
+
+    def _init_camera_for_enrollment(self):
+        self.camera = Camera(
+            camera_index=self.settings.CAMERA_INDEX,
+            width=self.settings.CAMERA_WIDTH,
+            height=self.settings.CAMERA_HEIGHT,
+            fps=self.settings.ENROLLMENT_FPS
+        )
+
+    def _init_camera_for_recognition(self):
+        self.camera = Camera(
+            camera_index=self.settings.CAMERA_INDEX,
+            width=self.settings.CAMERA_WIDTH,
+            height=self.settings.CAMERA_HEIGHT,
+            fps=self.settings.RECOGNITION_FPS
+        )
+
+    def enroll_employee(self, nama, nip, mode='video', image_paths=None):
+        if mode == 'video':
+            self._init_camera_for_enrollment()
+
+        enrollment = Enrollment(
+            camera=self.camera,
+            detector=self.detector,
+            quality_checker=self.quality_checker,
+            embedding_extractor=self.embedding_extractor,
+            pegawai_repo=self.pegawai_repo,
+            embedding_repo=self.embedding_repo,
+            settings=self.settings
+        )
+
+        return enrollment.enroll(nama, nip, mode, image_paths)
+
+    def recognize_face(self):
+        self._init_camera_for_recognition()
+
+        self.recognition_instance = Recognition(
+            camera=self.camera,
+            detector=self.detector,
+            quality_checker=self.quality_checker,
+            embedding_extractor=self.embedding_extractor,
+            matcher=self.matcher,
+            pegawai_repo=self.pegawai_repo,
+            embedding_repo=self.embedding_repo,
+            log_repo=self.log_repo,
+            settings=self.settings
+        )
+
+        return self.recognition_instance.recognize()
+
+    def recognize_from_crowd_video(
+        self,
+        video_source,
+        output_path=None,
+        is_outdoor=False,
+        sample_fps=5,
+        duration_sec=None,
+        source_type="VIDEO"
+    ):
+        # `duration_sec` and `source_type` are kept for backward compatibility
+        # with older callers that still pass these arguments.
+        return self.crowd_detector.detect_from_video(
+            video_source=video_source,
+            output_path=output_path,
+            is_outdoor=is_outdoor,
+            sample_fps=sample_fps
+        )
+
     def show_menu(self):
-        """Tampilkan menu utama"""
         while True:
-            print("\n" + "="*60)
-            print(" "*15 + "FACE ACCESS SYSTEM")
-            print("="*60)
-            print("1. Pendaftaran Pegawai Baru")
-            print("2. Face Recognition (Akses Pintu)")
-            print("3. Keluar")
-            print("="*60)
-            
-            choice = input("\nPilih menu (1-3): ").strip()
-            
+            print("\n" + "=" * 60)
+            print("FACE ACCESS SYSTEM")
+            print("=" * 60)
+            print("1. Pendaftaran Pegawai")
+            print("2. Face Recognition")
+            print("3. Crowd Recognition (Video/CCTV)")
+            print("4. Keluar")
+
+            choice = input("Pilih (1-4): ").strip()
+
             if choice == '1':
                 self._menu_enrollment()
             elif choice == '2':
                 self._menu_recognition()
             elif choice == '3':
-                Logger.info("Terima kasih telah menggunakan sistem!")
+                self._menu_crowd_recognition()
+            elif choice == '4':
                 break
-            else:
-                Logger.warning("Pilihan tidak valid!")
-    
-    def _menu_enrollment(self):
-        """Menu pendaftaran"""
-        print("\n" + "="*60)
-        print(" "*15 + "PENDAFTARAN PEGAWAI")
-        print("="*60)
-        
-        nama = input("Nama Lengkap: ").strip()
-        nip = input("NIP (10 digit): ").strip()
-        
-        if not nama or not nip:
-            Logger.warning("Nama dan NIP tidak boleh kosong!")
-            return
-        
-        if len(nip) != 10:
-            Logger.warning("NIP harus 10 digit!")
-            return
-        
-        # Pilihan mode enrollment
-        print("\n" + "="*60)
-        print("PILIH METODE PENDAFTARAN")
-        print("="*60)
-        print("1. Rekam Video (Webcam)")
-        print("   - Real-time dari webcam")
-        print("   - Dengan liveness check")
-        print("   - Lebih aman")
-        print()
-        print("2. Upload Gambar")
-        print("   - Upload 5-10 foto wajah")
-        print("   - Angle & ekspresi berbeda")
-        print("   - Tanpa liveness check")
-        print("="*60)
-        
-        mode_choice = input("\nPilih metode (1/2): ").strip()
-        
-        if mode_choice == '1':
-            mode = 'video'
-            Logger.info("Mode: Rekam Video")
-            Logger.info("Tekan 'q' untuk membatalkan")
-        elif mode_choice == '2':
-            mode = 'upload'
-            Logger.info("Mode: Upload Gambar")
-        else:
-            Logger.warning("Pilihan tidak valid!")
-            return
-        
-        Logger.info("Memulai proses pendaftaran...")
-        
-        success = self.enroll_employee(nama, nip, mode)
-        
-        if success:
-            input("\nTekan Enter untuk kembali ke menu...")
-        else:
-            Logger.error("Pendaftaran gagal!")
-            input("\nTekan Enter untuk kembali ke menu...")
-    
-    def _menu_recognition(self):
-        """Menu face recognition"""
-        print("\n" + "="*60)
-        print(" "*15 + "FACE RECOGNITION")
-        print("="*60)
-        
-        Logger.info("Memulai face recognition...")
-        Logger.info("Tekan 'q' untuk membatalkan")
-        
-        success = self.recognize_face()
-        
-        if success:
-            input("\nTekan Enter untuk kembali ke menu...")
-        else:
-            input("\nTekan Enter untuk kembali ke menu...")
 
+    def _menu_enrollment(self):
+        nama = input("Nama: ").strip()
+        nip = input("NIP: ").strip()
+        self.enroll_employee(nama, nip, mode='video')
+
+    def _menu_recognition(self):
+        self.recognize_face()
+
+    def recognize_from_crowd_image(self, image_path, is_outdoor=False):
+        frame = cv2.imread(image_path)
+        if frame is None:
+            raise ValueError("Gagal membaca gambar")
+
+        detections = self.crowd_detector.detect_and_recognize(
+            frame,
+            is_outdoor=is_outdoor
+        )
+
+        people_summary = {}
+        for d in detections:
+            key = d["id_pegawai"]
+            if key not in people_summary:
+                people_summary[key] = {
+                    "nama": d["nama"],
+                    "nip": d["nip"],
+                    "count": 0
+                }
+            people_summary[key]["count"] += 1
+
+            # simpan log
+            self.crowd_log_repo.insert(
+                id_pegawai=d["id_pegawai"],
+                nama=d["nama"],
+                nip=d["nip"],
+                source_type="IMAGE"
+            )
+
+        return {
+            "unique_people": len(people_summary),
+            "people": list(people_summary.values())
+        }
+
+    def recognize_from_crowd_video_legacy(
+        self,
+        video_source,
+        duration_sec=None,
+        is_outdoor=False,
+        source_type="VIDEO"
+    ):
+        cap = cv2.VideoCapture(video_source)
+        if not cap.isOpened():
+            raise ValueError("Video/Webcam tidak bisa dibuka")
+
+        start_time = time.time()
+        processed_frames = 0
+        people_summary = {}
+
+        while True:
+            ret, frame = cap.read()
+            if not ret:
+                break
+
+            processed_frames += 1
+
+            detections = self.crowd_detector.detect_and_recognize(
+                frame,
+                is_outdoor=is_outdoor
+            )
+
+            for d in detections:
+                key = d["id_pegawai"]
+                if key not in people_summary:
+                    people_summary[key] = {
+                        "nama": d["nama"],
+                        "nip": d["nip"],
+                        "count": 0
+                    }
+                people_summary[key]["count"] += 1
+
+                # simpan log
+                self.crowd_log_repo.insert(
+                    id_pegawai=d["id_pegawai"],
+                    nama=d["nama"],
+                    nip=d["nip"],
+                    source_type=source_type
+                )
+
+            if duration_sec and (time.time() - start_time) >= duration_sec:
+                break
+
+        cap.release()
+
+        return {
+            "processed_frames": processed_frames,
+            "unique_people": len(people_summary),
+            "people": list(people_summary.values())
+        }
 
 def main():
-    """Main entry point"""
-    try:
-        system = FaceAccessSystem()
-        system.show_menu()
-    except KeyboardInterrupt:
-        Logger.info("\nProgram dihentikan oleh user")
-    except Exception as e:
-        Logger.error(f"Error: {e}")
-        import traceback
-        traceback.print_exc()
-    finally:
-        Logger.info("Program selesai")
+    system = FaceAccessSystem()
+    system.show_menu()
 
 
 if __name__ == "__main__":
