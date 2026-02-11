@@ -70,3 +70,25 @@ class LogRepository:
             return None
         finally:
             cursor.close()
+
+    def log_crowd_detection(self, id_pegawai, nama, nip, source_type):
+        """Simpan log hasil crowd detection ke tabel crowd_log."""
+        conn = self.db.get_connection()
+        cursor = conn.cursor()
+
+        source_type = (source_type or "VIDEO").upper()
+        if source_type not in ("IMAGE", "VIDEO", "WEBCAM"):
+            source_type = "VIDEO"
+
+        try:
+            cursor.execute(
+                "INSERT INTO crowd_log (id_pegawai, nama, nip, source_type) VALUES (%s, %s, %s, %s)",
+                (id_pegawai, nama, nip, source_type)
+            )
+            conn.commit()
+            return cursor.lastrowid
+        except mysql.connector.Error as e:
+            Logger.error(f"Crowd log error: {e}")
+            return None
+        finally:
+            cursor.close()

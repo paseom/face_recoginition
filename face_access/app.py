@@ -2,6 +2,7 @@ import streamlit as st
 from main import FaceAccessSystem
 import tempfile
 import os
+import inspect
 
 st.set_page_config(
     page_title="Face Access System",
@@ -11,6 +12,14 @@ st.set_page_config(
 # ===== INIT SYSTEM SEKALI =====
 if "system" not in st.session_state:
     st.session_state.system = FaceAccessSystem()
+else:
+    # Re-init otomatis jika masih pakai instance lama yang belum punya argumen baru.
+    try:
+        sig = inspect.signature(st.session_state.system.recognize_from_crowd_image)
+        if "source_type" not in sig.parameters:
+            st.session_state.system = FaceAccessSystem()
+    except Exception:
+        st.session_state.system = FaceAccessSystem()
 
 # ===== INIT SESSION STATE =====
 if "page" not in st.session_state:
@@ -343,37 +352,133 @@ elif st.session_state.page == "recognition":
 # ===== CROWD RECOGNITION =====
 elif st.session_state.page == "crowd":
     st.header("👥 Crowd Recognition (Video / CCTV)")
-
-    video_source = st.text_input("Path video atau 0 untuk webcam", value="0")
-    output_video = st.text_input("Path output video (opsional)")
+    mode_sumber = st.radio(
+        "Sumber Input",
+        ["Upload", "Webcam"],
+        horizontal=True
+    )
     is_outdoor = st.checkbox("Outdoor")
-    sample_fps = st.number_input("Durasi Rekaman", min_value=1, max_value=30, value=5)
 
-    if st.button("🚀 Mulai Crowd Detection"):
-        if video_source == "0":
-            video_source = 0
+    video_source = None
+    duration_sec = None
+    sample_fps = 5
+    temp_upload_path = None
+    uploaded_file = None
+    upload_type = "Video"
 
-        output_path = output_video if output_video else None
+    if mode_sumber == "Upload":
+        upload_type = st.radio(
+            "Jenis Upload",
+            ["Video", "Gambar"],
+            horizontal=True
+        )
 
-        with st.spinner("Memproses video..."):
-            summary = system.recognize_from_crowd_video(
-                video_source=video_source,
-                output_path=output_path,
-                is_outdoor=is_outdoor,
-                sample_fps=sample_fps
+        if upload_type == "Video":
+            uploaded_file = st.file_uploader(
+                "Upload file video",
+                type=["mp4", "avi", "mov", "mkv"],
+                key="crowd_upload_video"
+            )
+            duration_sec = st.number_input(
+                "Durasi Proses Upload Video (detik)",
+                min_value=1,
+                max_value=600,
+                value=5
+            )
+        else:
+            uploaded_file = st.file_uploader(
+                "Upload file gambar",
+                type=["jpg", "jpeg", "png", "bmp"],
+                key="crowd_upload_image"
             )
 
-        if summary:
-            st.success("Proses selesai")
-            st.write(f"Total Frame: {summary['total_frames']}")
-            st.write(f"Unique People: {summary['unique_people']}")
+    else:
+        webcam_index = st.number_input("Index Webcam", min_value=0, max_value=10, value=0)
+        sample_fps = st.number_input("Sample FPS", min_value=1, max_value=30, value=5)
+        duration_sec = st.number_input("Durasi Rekaman (detik)", min_value=1, max_value=300, value=5)
+        video_source = int(webcam_index)
 
-            if summary["people"]:
-                st.subheader("Orang Terdeteksi")
-                for p in summary["people"]:
-                    st.write(f"- {p['nama']} (NIP: {p['nip']}) muncul {p['count']}x")
+    if st.button("🚀 Mulai Crowd Detection"):
+        try:
+            if mode_sumber == "Upload":
+                if uploaded_file is None:
+                    st.error("❌ File belum diupload")
+                    st.stop()
 
-            if st.button("💾 Simpan Report"):
-                report_path = st.text_input("Path report (.txt)", value="crowd_report.txt")
-                system.crowd_detector.generate_detection_report(summary, report_path)
-                st.success("Report disimpan")
+                suffix = os.path.splitext(uploaded_file.name)[1] or ".tmp"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp_file:
+                    tmp_file.write(uploaded_file.read())
+                    temp_upload_path = tmp_file.name
+                video_source = temp_upload_path
+
+                with st.spinner("Memproses media..."):
+                    if upload_type == "Gambar":
+                        summary = system.recognize_from_crowd_image(
+                            image_path=video_source,
+                            is_outdoor=is_outdoor,
+                            source_type="IMAGE"
+                        )
+                    else:
+                        summary = system.recognize_from_crowd_video(
+                            video_source=video_source,
+                            output_path=None,
+                            is_outdoor=is_outdoor,
+                            sample_fps=5,
+                            duration_sec=int(duration_sec) if duration_sec is not None else None,
+                            source_type="VIDEO"
+                        )
+            else:
+                with st.spinner("Memproses webcam..."):
+                    summary = system.recognize_from_crowd_video(
+                        video_source=video_source,
+                        output_path=None,
+                        is_outdoor=is_outdoor,
+                        sample_fps=int(sample_fps),
+                        duration_sec=int(duration_sec) if duration_sec is not None else None,
+                        source_type="WEBCAM"
+                    )
+
+            if summary:
+                st.success("Proses selesai")
+                st.write(f"Total Frame: {summary['total_frames']}")
+                st.write(f"Unique People: {summary['unique_people']}")
+
+                if summary["people"]:
+                    st.subheader("Orang Terdeteksi")
+                    for p in summary["people"]:
+                        st.write(f"- {p['nama']} (NIP: {p['nip']}) muncul {p['count']}x")
+                else:
+                    st.warning("Belum ada pegawai yang berhasil dikenali.")
+                    reasons = summary.get("failure_reasons", [])
+                    if reasons:
+                        st.markdown("**Kemungkinan alasan utama:**")
+                        for r in reasons[:3]:
+                            persen = int(r["ratio"] * 100)
+                            st.write(f"- {r['reason']} ({r['count']}x, ~{persen}% frame sample)")
+                    st.info(
+                        "Saran: gunakan foto/video lebih terang, tidak blur, wajah lebih dekat, "
+                        "dan posisi wajah lebih frontal."
+                    )
+
+                if st.button("💾 Generate Report"):
+                    report_text = system.crowd_detector.generate_detection_report(summary, output_file=None)
+                    st.download_button(
+                        "⬇️ Download Report",
+                        data=report_text,
+                        file_name="crowd_report.txt",
+                        mime="text/plain"
+                    )
+            else:
+                st.error("❌ Proses gagal. Pastikan source valid dan bisa dibaca.")
+
+        except Exception as e:
+            st.error(f"❌ Error: {str(e)}")
+            with st.expander("Detail Error"):
+                import traceback
+                st.code(traceback.format_exc())
+        finally:
+            if temp_upload_path and os.path.exists(temp_upload_path):
+                try:
+                    os.remove(temp_upload_path)
+                except Exception:
+                    pass

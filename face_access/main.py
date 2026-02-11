@@ -121,7 +121,9 @@ class FaceAccessSystem:
             video_source=video_source,
             output_path=output_path,
             is_outdoor=is_outdoor,
-            sample_fps=sample_fps
+            sample_fps=sample_fps,
+            duration_sec=duration_sec,
+            source_type=source_type
         )
 
     def show_menu(self):
@@ -153,39 +155,12 @@ class FaceAccessSystem:
     def _menu_recognition(self):
         self.recognize_face()
 
-    def recognize_from_crowd_image(self, image_path, is_outdoor=False):
-        frame = cv2.imread(image_path)
-        if frame is None:
-            raise ValueError("Gagal membaca gambar")
-
-        detections = self.crowd_detector.detect_and_recognize(
-            frame,
-            is_outdoor=is_outdoor
+    def recognize_from_crowd_image(self, image_path, is_outdoor=False, source_type="IMAGE"):
+        return self.crowd_detector.detect_from_image(
+            image_source=image_path,
+            is_outdoor=is_outdoor,
+            source_type=source_type
         )
-
-        people_summary = {}
-        for d in detections:
-            key = d["id_pegawai"]
-            if key not in people_summary:
-                people_summary[key] = {
-                    "nama": d["nama"],
-                    "nip": d["nip"],
-                    "count": 0
-                }
-            people_summary[key]["count"] += 1
-
-            # simpan log
-            self.crowd_log_repo.insert(
-                id_pegawai=d["id_pegawai"],
-                nama=d["nama"],
-                nip=d["nip"],
-                source_type="IMAGE"
-            )
-
-        return {
-            "unique_people": len(people_summary),
-            "people": list(people_summary.values())
-        }
 
     def recognize_from_crowd_video_legacy(
         self,

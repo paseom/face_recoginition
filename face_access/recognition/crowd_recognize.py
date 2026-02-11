@@ -6,6 +6,7 @@ import cv2
 import numpy as np
 from utils.logger import Logger
 from datetime import datetime
+import time
 
 class CrowdDetectionComplete:
     """
@@ -56,8 +57,15 @@ class CrowdDetectionComplete:
         # Recognition
         self.SIMILARITY_THRESHOLD = 0.5
     
-    def detect_from_video(self, video_source, output_path=None, 
-                         is_outdoor=False, sample_fps=5):
+    def detect_from_video(
+        self,
+        video_source,
+        output_path=None,
+        is_outdoor=False,
+        sample_fps=5,
+        duration_sec=None,
+        source_type="VIDEO"
+    ):
         """
         Main detection dari video/webcam
         
@@ -66,6 +74,7 @@ class CrowdDetectionComplete:
             output_path: Path output video (optional)
             is_outdoor: True jika outdoor (blur threshold lebih tinggi)
             sample_fps: Process N frame per second
+            duration_sec: Stop processing after N seconds (optional)
         """
         Logger.info(f"Starting crowd detection from video: {video_source}")
         
@@ -76,6 +85,9 @@ class CrowdDetectionComplete:
         
         # Video properties
         fps = int(cap.get(cv2.CAP_PROP_FPS))
+        if fps <= 0:
+            # Webcam/device streams can return 0 FPS metadata.
+            fps = 30
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
         height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
         
@@ -93,10 +105,25 @@ class CrowdDetectionComplete:
         # Tracking
         detection_log = []  # Log semua deteksi
         unique_people = {}  # Track unique people
+        filtered_totals = {
+            'stage0_no_face': 0,
+            'stage1_detection': 0,
+            'stage2_size': 0,
+            'stage3_blur': 0,
+            'stage4_pose': 0,
+            'stage5_landmark': 0
+        }
         frame_count = 0
-        process_interval = fps // sample_fps  # Process every N frames
+        sampled_frame_count = 0
+        sample_fps = max(1, int(sample_fps))
+        process_interval = max(1, fps // sample_fps)  # Process every N frames
+        start_time = time.time()
         
         while True:
+            if duration_sec and (time.time() - start_time) >= duration_sec:
+                Logger.info(f"Reached duration limit: {duration_sec}s")
+                break
+
             ret, frame = cap.read()
             if not ret:
                 break
@@ -115,6 +142,9 @@ class CrowdDetectionComplete:
                 frame_count, 
                 blur_threshold
             )
+            sampled_frame_count += 1
+            for key in filtered_totals:
+                filtered_totals[key] += result['filtered'].get(key, 0)
             
             # Log detections
             timestamp = datetime.now()
@@ -141,6 +171,17 @@ class CrowdDetectionComplete:
                     }
                 unique_people[id_peg]['last_seen'] = frame_count
                 unique_people[id_peg]['count'] += 1
+
+                # Persist crowd detection to DB (no frame/similarity in table schema)
+                try:
+                    self.log_repo.log_crowd_detection(
+                        id_pegawai=person['id_pegawai'],
+                        nama=person['nama'],
+                        nip=person['nip'],
+                        source_type=source_type
+                    )
+                except Exception as e:
+                    Logger.error(f"Failed to write crowd_log: {e}")
             
             # Write annotated frame
             if writer:
@@ -161,15 +202,106 @@ class CrowdDetectionComplete:
         # Summary
         summary = {
             'total_frames': frame_count,
-            'processed_frames': len(detection_log),
+            'processed_frames': sampled_frame_count,
             'unique_people': len(unique_people),
             'people': list(unique_people.values()),
-            'detection_log': detection_log
+            'detection_log': detection_log,
+            'filter_summary': filtered_totals,
+            'failure_reasons': self._build_failure_reasons(filtered_totals, sampled_frame_count)
         }
+
+        # Tetap catat percobaan crowd meskipun tidak ada wajah yang recognized.
+        if len(detection_log) == 0:
+            try:
+                self.log_repo.log_crowd_detection(
+                    id_pegawai=None,
+                    nama=None,
+                    nip=None,
+                    source_type=source_type
+                )
+            except Exception as e:
+                Logger.error(f"Failed to write unknown crowd_log: {e}")
         
         Logger.success(f"Detection complete! Unique people: {len(unique_people)}")
         
         return summary
+
+    def detect_from_image(self, image_source, is_outdoor=False, source_type="IMAGE"):
+        """
+        Detection dari satu gambar.
+
+        Args:
+            image_source: Path gambar
+            is_outdoor: True jika outdoor (blur threshold lebih tinggi)
+        """
+        frame = cv2.imread(image_source)
+        if frame is None:
+            Logger.error("Failed to read image source")
+            return None
+
+        blur_threshold = self.BLUR_OUTDOOR if is_outdoor else self.BLUR_INDOOR
+        result = self._process_frame_5stage(frame, frame_num=1, blur_threshold=blur_threshold)
+
+        unique_people = {}
+        detection_log = []
+        timestamp = datetime.now()
+        for person in result['detected']:
+            id_peg = person['id_pegawai']
+            unique_people[id_peg] = {
+                'nama': person['nama'],
+                'nip': person['nip'],
+                'first_seen': 1,
+                'last_seen': 1,
+                'count': 1
+            }
+            detection_log.append({
+                'frame': 1,
+                'timestamp': timestamp,
+                'id_pegawai': person['id_pegawai'],
+                'nama': person['nama'],
+                'nip': person['nip'],
+                'similarity': person['similarity'],
+                'bbox': person['bbox']
+            })
+            try:
+                self.log_repo.log_crowd_detection(
+                    id_pegawai=person['id_pegawai'],
+                    nama=person['nama'],
+                    nip=person['nip'],
+                    source_type=source_type
+                )
+            except Exception as e:
+                Logger.error(f"Failed to write crowd_log: {e}")
+
+        filter_summary = {
+            'stage0_no_face': result['filtered'].get('stage0_no_face', 0),
+            'stage1_detection': result['filtered'].get('stage1_detection', 0),
+            'stage2_size': result['filtered'].get('stage2_size', 0),
+            'stage3_blur': result['filtered'].get('stage3_blur', 0),
+            'stage4_pose': result['filtered'].get('stage4_pose', 0),
+            'stage5_landmark': result['filtered'].get('stage5_landmark', 0)
+        }
+
+        if len(detection_log) == 0:
+            try:
+                self.log_repo.log_crowd_detection(
+                    id_pegawai=None,
+                    nama=None,
+                    nip=None,
+                    source_type=source_type
+                )
+            except Exception as e:
+                Logger.error(f"Failed to write unknown crowd_log: {e}")
+
+        return {
+            'total_frames': 1,
+            'processed_frames': 1,
+            'unique_people': len(unique_people),
+            'people': list(unique_people.values()),
+            'detection_log': detection_log,
+            'filter_summary': filter_summary,
+            'failure_reasons': self._build_failure_reasons(filter_summary, 1)
+        }
     
     def _process_frame_5stage(self, frame, frame_num, blur_threshold):
         """
@@ -180,6 +312,7 @@ class CrowdDetectionComplete:
         
         detected_people = []
         filtered_out = {
+            'stage0_no_face': 0,
             'stage1_detection': 0,
             'stage2_size': 0,
             'stage3_blur': 0,
@@ -191,7 +324,7 @@ class CrowdDetectionComplete:
         faces = self.detector.detect(frame)
         
         if len(faces) == 0:
-            filtered_out['stage1_detection'] = 0
+            filtered_out['stage0_no_face'] = 1
         
         # Get stored embeddings once
         stored_embeddings = self.embedding_repo.get_all()
@@ -289,6 +422,31 @@ class CrowdDetectionComplete:
             'filtered': filtered_out,
             'annotated_frame': frame
         }
+
+    def _build_failure_reasons(self, filter_summary, sampled_frame_count):
+        reason_map = {
+            'stage0_no_face': "Wajah tidak terdeteksi (posisi terlalu jauh/sudut tidak pas)",
+            'stage1_detection': "Deteksi wajah lemah (confidence rendah)",
+            'stage2_size': "Wajah terlalu kecil di frame",
+            'stage3_blur': "Gambar blur / tidak fokus",
+            'stage4_pose': "Pose wajah tidak frontal (yaw/pitch/roll tinggi)",
+            'stage5_landmark': "Fitur wajah tidak lengkap / landmark tidak stabil"
+        }
+
+        reasons = []
+        base = max(1, int(sampled_frame_count))
+        for key, label in reason_map.items():
+            count = int(filter_summary.get(key, 0))
+            if count > 0:
+                reasons.append({
+                    'stage': key,
+                    'reason': label,
+                    'count': count,
+                    'ratio': round(count / base, 3)
+                })
+
+        reasons.sort(key=lambda x: x['count'], reverse=True)
+        return reasons
     
     def _calculate_blur(self, image):
         """Stage 3: Laplacian Variance untuk blur detection"""
