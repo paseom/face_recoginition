@@ -227,7 +227,7 @@ if st.session_state.page == "enrollment":
         **Petunjuk:**
         1. Pastikan webcam sudah terhubung
         2. Posisikan wajah di depan kamera
-        3. Variasikan angle dan ekspresi wajah (angguk, pandang kanan-kiri)
+        3. Variasikan angle dan ekspresi wajah
         4. Proses rekam ~ 30-60 detik
         5. Sistem akan otomatis mengambil 10 sampel terbaik
         """)
@@ -332,7 +332,7 @@ elif st.session_state.page == "recognition":
                     st.markdown("""
                     **Kemungkinan penyebab:**
                     - Wajah belum terdaftar di sistem
-                    - Kualitas gambar buruk (terlalu gelap/blur)
+                    - Kualitas gambar buruk
                     - Pencahayaan tidak optimal
                     - Wajah tidak terdeteksi dengan jelas
                     
