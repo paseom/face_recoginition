@@ -57,12 +57,7 @@ class EmbeddingRepository:
                 embedding = None
                 # If DB contains a path (string), load from file
                 if isinstance(embedding_blob, str):
-                    path = embedding_blob
-                    try:
-                        with open(path, "rb") as f:
-                            embedding = pickle.load(f)
-                    except Exception:
-                        embedding = None
+                    embedding = self._load_embedding_from_path(embedding_blob)
                 else:
                     # try to unpickle raw blob (backwards compatibility)
                     try:
@@ -71,8 +66,7 @@ class EmbeddingRepository:
                         # if it's bytes representing a path, decode and try file
                         try:
                             path = embedding_blob.decode("utf-8")
-                            with open(path, "rb") as f:
-                                embedding = pickle.load(f)
+                            embedding = self._load_embedding_from_path(path)
                         except Exception:
                             embedding = None
 
@@ -81,3 +75,17 @@ class EmbeddingRepository:
             return embeddings
         finally:
             cursor.close()
+
+    def _load_embedding_from_path(self, path):
+        """Load embedding from absolute path, with fallback if project folder moved."""
+        try:
+            with open(path, "rb") as f:
+                return pickle.load(f)
+        except Exception:
+            # If repository folder was renamed/moved, try current storage dir with same filename.
+            fallback = os.path.join(self.storage_dir, os.path.basename(path))
+            try:
+                with open(fallback, "rb") as f:
+                    return pickle.load(f)
+            except Exception:
+                return None

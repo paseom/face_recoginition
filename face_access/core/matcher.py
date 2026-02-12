@@ -1,4 +1,5 @@
 from utils.math_utils import cosine_similarity
+import numpy as np
 
 class FaceMatcher:
     """Match faces using cosine similarity"""
@@ -8,10 +9,15 @@ class FaceMatcher:
     
     def match(self, embedding, stored_embeddings):
         """Match embedding against database"""
+        if embedding is None:
+            return None, 0.0
+
         best_match = None
         best_similarity = 0
         
         for id_pegawai, stored_embedding in stored_embeddings:
+            if stored_embedding is None:
+                continue
             similarity = cosine_similarity(embedding, stored_embedding)
             
             if similarity > best_similarity:
