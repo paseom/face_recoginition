@@ -1,13 +1,12 @@
 import cv2
 
 class Camera:
-    """Camera handler dengan FPS control"""
+    """Camera handler"""
     
-    def __init__(self, camera_index=0, width=640, height=480, fps=30):
+    def __init__(self, camera_index=0, width=640, height=480):
         self.camera_index = camera_index
         self.width = width
         self.height = height
-        self.target_fps = fps
         self.cap = None
     
     def open(self):
@@ -15,7 +14,6 @@ class Camera:
         self.cap = cv2.VideoCapture(self.camera_index)
         self.cap.set(cv2.CAP_PROP_FRAME_WIDTH, self.width)
         self.cap.set(cv2.CAP_PROP_FRAME_HEIGHT, self.height)
-        self.cap.set(cv2.CAP_PROP_FPS, 30)
         self.cap.set(cv2.CAP_PROP_BUFFERSIZE, 1)
         return self.cap.isOpened()
     

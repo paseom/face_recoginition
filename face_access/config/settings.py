@@ -8,8 +8,6 @@ class Settings:
         'database': 'pegawai_bpk'
     }
     
-    ENROLLMENT_FPS = 10 # Frame per second untuk enrollment
-    RECOGNITION_FPS = 5 # Frame per second untuk recognition
     
     FACE_SIZE_THRESHOLD = 0.05 # Proporsi minimum ukuran wajah terhadap frame
     CONFIDENCE_THRESHOLD = 0.6 # Ambang batas confidence deteksi wajah
@@ -61,3 +59,4 @@ class Settings:
             # Pakai camera pertama yang tersedia
             available = CameraDetector.get_available_cameras()
             return available[0] if available else 0
+

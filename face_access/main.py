@@ -61,16 +61,14 @@ class FaceAccessSystem:
         self.camera = Camera(
             camera_index=self.settings.CAMERA_INDEX,
             width=self.settings.CAMERA_WIDTH,
-            height=self.settings.CAMERA_HEIGHT,
-            fps=self.settings.ENROLLMENT_FPS
+            height=self.settings.CAMERA_HEIGHT
         )
 
     def _init_camera_for_recognition(self):
         self.camera = Camera(
             camera_index=self.settings.CAMERA_INDEX,
             width=self.settings.CAMERA_WIDTH,
-            height=self.settings.CAMERA_HEIGHT,
-            fps=self.settings.RECOGNITION_FPS
+            height=self.settings.CAMERA_HEIGHT
         )
 
     def enroll_employee(self, nama, nip, mode='video', image_paths=None):
@@ -225,3 +223,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

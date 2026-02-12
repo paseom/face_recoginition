@@ -32,11 +32,11 @@ class CrowdDetectionComplete:
         self.CONFIDENCE_THRESHOLD = 0.3
         
         # Stage 2: Face Size Thresholds
-        self.FACE_SIZE_THRESHOLD = 0.01 # 5% dari frame
+        self.FACE_SIZE_THRESHOLD = 0.03
         
         # Stage 3: Blur Detection
-        self.BLUR_INDOOR = 40
-        self.BLUR_OUTDOOR = 60
+        self.BLUR_INDOOR = 25
+        self.BLUR_OUTDOOR = 20
         
         # Stage 4: Pose Thresholds
         self.YAW_THRESHOLD = 35    # degrees
@@ -215,8 +215,8 @@ class CrowdDetectionComplete:
             try:
                 self.log_repo.log_crowd_detection(
                     id_pegawai=None,
-                    nama=None,
-                    nip=None,
+                    nama="UNKNOWN",
+                    nip="-",
                     source_type=source_type
                 )
             except Exception as e:
@@ -286,8 +286,8 @@ class CrowdDetectionComplete:
             try:
                 self.log_repo.log_crowd_detection(
                     id_pegawai=None,
-                    nama=None,
-                    nip=None,
+                    nama="UNKNOWN",
+                    nip="-",
                     source_type=source_type
                 )
             except Exception as e:

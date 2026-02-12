@@ -351,7 +351,7 @@ elif st.session_state.page == "recognition":
                 
 # ===== CROWD RECOGNITION =====
 elif st.session_state.page == "crowd":
-    st.header("👥 Crowd Recognition (Video / CCTV)")
+    st.header("👥 Crowd Recognition (Video / Gambar)")
     mode_sumber = st.radio(
         "Sumber Input",
         ["Upload", "Webcam"],
@@ -361,7 +361,6 @@ elif st.session_state.page == "crowd":
 
     video_source = None
     duration_sec = None
-    sample_fps = 5
     temp_upload_path = None
     uploaded_file = None
     upload_type = "Video"
@@ -394,7 +393,6 @@ elif st.session_state.page == "crowd":
 
     else:
         webcam_index = st.number_input("Index Webcam", min_value=0, max_value=10, value=0)
-        sample_fps = st.number_input("Sample FPS", min_value=1, max_value=30, value=5)
         duration_sec = st.number_input("Durasi Rekaman (detik)", min_value=1, max_value=300, value=5)
         video_source = int(webcam_index)
 
@@ -433,7 +431,6 @@ elif st.session_state.page == "crowd":
                         video_source=video_source,
                         output_path=None,
                         is_outdoor=is_outdoor,
-                        sample_fps=int(sample_fps),
                         duration_sec=int(duration_sec) if duration_sec is not None else None,
                         source_type="WEBCAM"
                     )
@@ -460,16 +457,8 @@ elif st.session_state.page == "crowd":
                         "dan posisi wajah lebih frontal."
                     )
 
-                if st.button("💾 Generate Report"):
-                    report_text = system.crowd_detector.generate_detection_report(summary, output_file=None)
-                    st.download_button(
-                        "⬇️ Download Report",
-                        data=report_text,
-                        file_name="crowd_report.txt",
-                        mime="text/plain"
-                    )
             else:
-                st.error("❌ Proses gagal. Pastikan source valid dan bisa dibaca.")
+                st.error("❌ Proses gagal. Pastikan gambar/video valid dan bisa dibaca.")
 
         except Exception as e:
             st.error(f"❌ Error: {str(e)}")
@@ -482,3 +471,4 @@ elif st.session_state.page == "crowd":
                     os.remove(temp_upload_path)
                 except Exception:
                     pass
+
